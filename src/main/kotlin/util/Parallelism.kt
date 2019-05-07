@@ -6,6 +6,19 @@ import java.util.concurrent.atomic.AtomicInteger
 
 private val log = KotlinLogging.logger {}
 
+fun logProgress(name: String, total: Int, run: (tracker: AtomicInteger) -> Unit) {
+    val progressTracker = AtomicInteger(0)
+    val logExecutor = Executors.newSingleThreadScheduledExecutor()
+    val logJob = logExecutor.scheduleAtFixedRate({
+        val complete = progressTracker.get()
+        val percentage = "%.2f".format(complete.toDouble() / total * 100)
+        log.info { "$name - $percentage% complete." }
+    }, 5, 5, TimeUnit.SECONDS)
+    run(progressTracker)
+    logJob?.cancel(false)
+    logExecutor.shutdown()
+}
+
 fun <T, R> runParallel (name: String,
                         values: List<T>,
                         parallelism: Int,

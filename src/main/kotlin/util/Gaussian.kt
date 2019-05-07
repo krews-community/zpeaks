@@ -1,7 +1,7 @@
 package util
 
-import java.lang.Math.*
-import kotlin.math.pow
+import org.apache.commons.math3.util.FastMath.*
+
 
 fun gaussianDistribution(a: Double, x: Double, u: Double, length: Int): List<Double> {
     return (0..length).map { i -> a * exp(-(i - x) * (i - x) / (u * u) / 2.0) }
@@ -11,7 +11,7 @@ fun gaussianDistribution(a: Double, x: Double, u: Double, length: Int): List<Dou
  * Smooths the input vector using the second derivative of a Gaussian distribution
  * of the given width.
  */
-fun scaleSpaceSmooth(input: List<Double>, kernelWidth: Double): List<Double> {
+fun scaleSpaceSmooth(input: DoubleArray, kernelWidth: Double): List<Double> {
     val gaussianKernel = sampleSDev(kernelWidth, input.size)
     return convolve(input, gaussianKernel)
 }
@@ -19,7 +19,7 @@ fun scaleSpaceSmooth(input: List<Double>, kernelWidth: Double): List<Double> {
 /**
  * Perform a 1d convolution with output list same length as input
  */
-fun convolve(input: List<Double>, kernel: List<Double>): List<Double> {
+fun convolve(input: DoubleArray, kernel: List<Double>): List<Double> {
     val output = mutableListOf<Double>()
     val kernelCenter = kernel.size / 2
     for (inputIndex in 0 until input.size) {
@@ -30,7 +30,7 @@ fun convolve(input: List<Double>, kernel: List<Double>): List<Double> {
                 outputVal += input[neighbor] * kernelVal
             }
         }
-        output[inputIndex] = outputVal
+        output += outputVal
     }
     return output
 }
@@ -45,7 +45,7 @@ fun convolve(input: List<Double>, kernel: List<Double>): List<Double> {
  */
 fun sampleSDev(stdDev: Double, size: Int): List<Double> {
     val a = 1.0 / stdDev / SQRT2PI
-    val output = mutableListOf<Double>()
+    val output = MutableList(size * 2) { 0.0 }
     for (i in 0 until size) {
         val value = a *
                 exp(-i.pow(2) / stdDev.pow(2)) *

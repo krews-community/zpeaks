@@ -1,59 +1,142 @@
 package step.subpeaks
 
 import model.*
+import org.apache.commons.math3.linear.*
+import org.apache.commons.math3.linear.MatrixUtils.*
 import util.*
 import java.lang.Math.*
+import kotlin.math.pow
+
+
+interface GaussianParameters {
+    var amplitude: Double
+    var mean: Double
+    var stdDev: Double
+}
+
+data class SubPeak(
+    val region: Region,
+    val score: Double,
+    val gaussianParameters: GaussianParameters
+)
+
+data class OptimizeResults(
+    val parameters: List<GaussianParameters>,
+    val error: Double,
+    val iterations: Int
+)
+
+typealias Optimizer = (values: DoubleArray, gaussians: List<GaussianParameters>, lambda: Double) -> OptimizeResults
 
 /**
- * Represents a Gaussian distribution with shape (adds skewness).
- * Comparison functions only compare amplitude (used for sorting
- * from most to least important when curve fitting).
- *
- * shape: shape parameter (alpha) capturing skewness.
- * amplitude: suqare root of the amplitude of the distribution.
- * mean: center point of the distribution.
- * stdev: standard deviation of the distribution.
- */
-data class SkewGaussianParameters(val amplitude: Double, val mean: Double, val stdDev: Double, val shape: Double)
-
-data class StandardGaussianParameters(val amplitude: Double, val mean: Double, val stdDev: Double)
-
-interface GaussianParameters
-
-data class PeakGaussian<P : GaussianParameters>(val region: Region, val gaussianParameters: P)
-
-/**
- * Performs a gaussian step.subpeaks.fit on the given region and pushes output to the passed vectors
- * for scores, regions, and parameters. This method will retry the step.subpeaks.fit up to five times
+ * Performs a gaussian fit on the given region and pushes output to the passed vectors
+ * for scores, regions, and parameters. This method will retry the fit up to five times
  * for large errors (>0.1) and splits large regions (>5kb) at the minimum element to avoid
- * very long step.subpeaks.fit times.
+ * very long fit times.
  *
- * values: the vector of values to step.subpeaks.fit.
- * region: the coordinates of the region being step.subpeaks.fit.
- * tregionout: output vector receiving coordinates of step.subpeaks.fit subpeaks.
- * tscoreout: output vector receiving region scores.
- * gaussiansout: output vector receiving parameters of step.subpeaks.fit subpeaks.
+ * pileUpValues: the vector of values to fit.
+ * pileUpRegion: the coordinates of the region being fit.
  */
-fun <P> fit(pileUpValues: List<Int>, pileUpRegion: Region): List<P> {
+fun fit(
+    pileUpValues: List<Double>,
+    pileUpStart: Int,
+    initParameters: (region: Region) -> GaussianParameters,
+    optimize: Optimizer,
+    parametersToRegion: (parameters: GaussianParameters, offset: Int) -> Region
+): List<SubPeak> {
+    if (pileUpValues.size > 5000) {
+        val splitPileUp = splitAtMin(pileUpValues)
+        val firstFit = fit(splitPileUp.first, pileUpStart, initParameters, optimize, parametersToRegion)
+        val secondFit = fit(
+            splitPileUp.second, pileUpStart + splitPileUp.first.size,
+            initParameters, optimize, parametersToRegion
+        )
+        return firstFit + secondFit
+    }
+
     // Subtract out background
     val min = pileUpValues.min()!!
     val valuesWithoutBackground = pileUpValues.map { it - min }
 
     // Put all on same scale
     val avg = valuesWithoutBackground.average()
-    val scaledValues = valuesWithoutBackground.map { it / avg }
+    val scaledValues = valuesWithoutBackground.map { it / avg }.toDoubleArray()
 
     // Get initial candidates list
     val candidates = scaleSpaceZeros(scaledValues)
 
     /*
      * here we compute guesses for the Gaussians' parameters based on zero crossing locations
-     * the means and stddevs are computed with simple equations
-     * the amplitudes are fit to the data using least squares after the means and stddevs are computed
+     * the means and standard deviations are computed with simple equations
+     * the amplitudes are fit to the data using least squares after the means and standard deviations are computed
      */
-    val gaussians =
+    val gaussians = candidates.map { initParameters(it) } as MutableList
 
+    /*
+     * Solve the system of linear equations to get the amplitude guesses
+     */
+    val lim = pileUpValues.size
+    val m = Array(gaussians.size) { DoubleArray(gaussians.size) }
+    val d = DoubleArray(gaussians.size)
+    val distributions = gaussians.map { gaussianDistribution(1.0, it.mean, it.stdDev, lim) }
+
+    // Set coefficients: sum all bp x of (sum all gaussians j of (kth gaussian(x) * jth gaussian(x)))
+    for (j in 0 until gaussians.size) {
+        for (k in 0 until gaussians.size) {
+            var value = 0.0
+            for (n in 0 until lim) {
+                value += distributions[k][n] * distributions[j][n]
+            }
+            m[k][j] = value
+        }
+    }
+
+    // Set values: sum all bp x of (curve value x * jth gaussian(x))
+    for (j in 0 until gaussians.size) {
+        var value = 0.0
+        for (n in 0 until lim) {
+            value += distributions[j][n] * scaledValues[n]
+        }
+        d[j] = value
+    }
+
+    val r = LUDecomposition(createRealMatrix(m)).solver.solve(createRealVector(d))
+
+    for (j in 0 until gaussians.size) {
+        val s = if (r.getEntry(j) < 0) -1.0 else 1.0
+        // Set Amplitude
+        gaussians[j].amplitude = sqrt(abs(r.getEntry(j) * gaussians[j].stdDev) * s)
+    }
+    // Sort gaussians by amplitude
+    gaussians.sortBy { it.amplitude * it.amplitude / it.stdDev }
+
+    /*
+     * Perform the actual fit of the curve to a sum of gaussians.size Gaussians
+     * optimization is performed with the Levenberg-Marquardt algorithm
+     */
+    var bestOptimized: OptimizeResults? = null
+    for (j in 1 until gaussians.size) {
+        val currentGuess = gaussians.subList(0, j)
+        val optimizeResults = optimize(scaledValues, currentGuess, 0.1)
+        if (optimizeResults.error < 0.05) {
+            bestOptimized = optimizeResults
+            break
+        }
+        if (bestOptimized == null || optimizeResults.error < bestOptimized.error) {
+            bestOptimized = optimizeResults
+        }
+    }
+
+    val sqrtAvg = sqrt(avg)
+    // Bring parameters back to original scale
+    bestOptimized!!.parameters.forEach { it.amplitude *= sqrtAvg }
+
+    return bestOptimized.parameters.map {
+        SubPeak(parametersToRegion(it, pileUpStart), parametersToScore(it), it)
+    }
 }
+
+fun parametersToScore(parameters: GaussianParameters): Double = parameters.amplitude.pow(2) / parameters.stdDev
 
 /*
  * Uses the scale-space image of the data to generate an initial list
@@ -62,7 +145,7 @@ fun <P> fit(pileUpValues: List<Int>, pileUpRegion: Region): List<P> {
  *
  * values: input vector from which to generate the scale space image.
  */
-private fun scaleSpaceZeros(values: List<Double>): List<Region> {
+private fun scaleSpaceZeros(values: DoubleArray): List<Region> {
     val candidates = mutableListOf<Region>()
 
     // Start with a kernel near the square root of the vector size and loop down to 2
@@ -127,13 +210,4 @@ private fun scaleSpaceZeros(values: List<Double>): List<Region> {
     candidates.removeAll { c -> c.start == -1 || c.end == -1 }
 
     return candidates
-}
-
-fun splitAtMin(values: List<Double>): List<List<Double>> {
-    // look only within the middle half to make sure we shrink the sizes by a reasonable amount
-    val quarterSize = values.size / 4
-    val minIndex = values.subList(quarterSize, quarterSize * 3).indexOfMin()!! + quarterSize
-
-    // Return two halves, split at min index.
-    return listOf(values.subList(0, minIndex), values.subList(minIndex, values.size))
 }

@@ -1,6 +1,6 @@
 package util
 
-import kotlin.math.*
+import org.apache.commons.math3.util.FastMath
 
 const val SQRT2PI = 2.506628275
 
@@ -28,4 +28,14 @@ fun <T : Comparable<T>> List<T>.indexOfMin(withinRange: IntRange? = null): Int? 
     return withinList.withIndex().minBy { it.value }?.index?.plus(withinRange?.first ?: 0)
 }
 
-fun Int.pow(x: Int) = this.toDouble().pow(x)
+fun splitAtMin(values: List<Double>): Pair<List<Double>, List<Double>> {
+    // look only within the middle half to make sure we shrink the sizes by a reasonable amount
+    val quarterSize = values.size / 4
+    val minIndex = values.subList(quarterSize, quarterSize * 3).indexOfMin()!! + quarterSize
+
+    // Return two halves, split at min index.
+    return values.subList(0, minIndex) to values.subList(minIndex, values.size)
+}
+
+fun Double.pow(x: Int) = FastMath.pow(this, x)
+fun Int.pow(x: Int) = FastMath.pow(this.toDouble(), x)

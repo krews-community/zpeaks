@@ -90,7 +90,7 @@ fun pileUpSam(samPath: Path, strand: Strand, atacMode: Boolean, pileUpAlgorithm:
         }
     }
 
-    return chromosomeLengths.keys.map { chr ->
+    return values.keys.map { chr ->
         chr to PileUp(
             chromosomeLength = chromosomeLengths.getValue(chr),
             values = values.getValue(chr),

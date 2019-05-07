@@ -20,10 +20,12 @@ dependencies {
     compile("io.github.microutils","kotlin-logging","1.6.10")
     compile("ch.qos.logback", "logback-classic","1.2.3")
     compile("com.github.samtools", "htsjdk","2.19.0")
-    compile("com.googlecode.matrix-toolkits-java", "mtj", "1.0.4")
+    compile("org.ejml", "ejml-all", "0.38")
+    compile("org.apache.commons", "commons-math3", "3.6.1")
 
     testImplementation("org.junit.jupiter", "junit-jupiter", "5.4.0")
     testCompile("org.assertj", "assertj-core", "3.11.1")
+    testCompile("org.knowm.xchart", "xchart", "3.5.4")
 }
 
 tasks.withType<KotlinCompile> {

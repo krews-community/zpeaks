@@ -1,20 +1,14 @@
-import htsjdk.samtools.SamReaderFactory
-import org.junit.jupiter.api.Test
+import model.*
+import org.junit.jupiter.api.*
+import step.*
 import util.getResourcePath
 
 class AppTests {
 
-    @Test
-    fun x() {
-        val testBamPath = getResourcePath("test.bam")
-        val bamReader = SamReaderFactory.make().open(testBamPath)
-        val sdict = bamReader.fileHeader.sequenceDictionary
-        val chromosomeLengths: Map<String, Int> = bamReader.fileHeader.sequenceDictionary.sequences
-            .map { it.sequenceName to it.sequenceLength }.toMap()
-        bamReader.use { reader ->
-            reader.forEach { record ->
-                val x = record.referenceName
-            }
-        }
+    @Disabled @Test
+    fun `Test App Run`() {
+        val testBamPath = getResourcePath("ENCFF375IJW.chr22.bam")
+        run(testBamPath, 50.0, 6.0, Strand.BOTH, false, PileUpAlgorithm.START)
     }
+
 }

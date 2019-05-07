@@ -1,65 +1,58 @@
 package step
 
 import java.lang.Math.*
-import java.util.*
 import model.*
 import mu.KotlinLogging
 import util.*
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.random.Random
 
 private val log = KotlinLogging.logger {}
 
 const val BACKGROUND_LIMIT = 1000
 
 data class Background(val average: Double, val stdDev: Double)
-data class PDF(val values: SortedMap<Int, Double>, val background: Background)
+data class PDF(val values: Map<Int, Double>, val background: Background, val chrLength: Int)
 
-fun pdf(pileUpValues: Map<Int, Int>, pileUpSum: Int, chrLength: Int, bandwidth: Double, noAmplitude: Boolean): PDF {
+fun pdf(chr: String, pileUpValues: Map<Int, Int>, pileUpSum: Int, chrLength: Int, bandwidth: Double, noAmplitude: Boolean): PDF {
     val windowSize = windowSize(bandwidth)
     val lookupTable = lookupTable(noAmplitude, windowSize, bandwidth, pileUpSum)
-    val pdfValues = sortedMapOf<Int, Double>()
+    val pdfValues = ConcurrentHashMap<Int, Double>(pileUpValues.size * 2)
 
-    for ((chrIndex, pileUpValue) in pileUpValues) {
-        pdfValues.increment(chrIndex, pileUpValue * lookupTable[0])
-        for (i in 1 until windowSize) {
-            if (chrIndex + i < chrLength) {
-                pdfValues.increment(chrIndex + i, pileUpValue * lookupTable[i])
+    logProgress("FSeq PDF on $chr", pileUpValues.size) { tracker ->
+        pileUpValues.entries.parallelStream().forEach { (chrIndex, pileUpValue) ->
+            pdfValues.increment(chrIndex, pileUpValue * lookupTable[0])
+            for (i in 1 until windowSize) {
+                if (chrIndex + i < chrLength) {
+                    pdfValues.increment(chrIndex + i, pileUpValue * lookupTable[i])
+                }
+                if (chrIndex - i > 0) {
+                    pdfValues.increment(chrIndex - i, pileUpValue * lookupTable[i])
+                }
             }
-            if (chrIndex - i > 0) {
-                pdfValues.increment(chrIndex - i, pileUpValue * lookupTable[i])
-            }
+            tracker.incrementAndGet()
         }
     }
 
     val background = background(lookupTable, pileUpSum, windowSize, chrLength)
-    return PDF(pdfValues, background)
+    return PDF(pdfValues, background, chrLength)
 }
 
 fun callPeaks(pdf: PDF, threshold: Double): List<Region> {
     val peaks = mutableListOf<Region>()
     var currentRegionStart: Int? = null
-    var currentRegionEnd: Int? = null
-    var previousChrIndex: Int? = null
-    for ((chrIndex, value) in pdf.values) {
-        // Since the step.PDF values are stored as a sparse ordered map where any missing values are 0,
-        // we need to check if we skipped any values. If so cut off the region and add it to peaks.
-        if (previousChrIndex != null && previousChrIndex == chrIndex - 1 && currentRegionStart != null) {
-            peaks += Region(currentRegionStart, currentRegionEnd!!)
-            currentRegionStart = null
-            currentRegionEnd = null
-        }
+    for (chrIndex in 0 until pdf.chrLength) {
+        val value = pdf.values.getOrDefault(chrIndex, 0.0)
+        val adjustedValue = (value - pdf.background.average) / pdf.background.stdDev
+        val aboveThreshold =  adjustedValue > threshold
 
-        if (value - pdf.background.average / pdf.background.stdDev > threshold) {
-            if (currentRegionStart != null) {
-                currentRegionStart = chrIndex
-            }
-            currentRegionEnd = chrIndex
-        } else if(currentRegionStart != null) {
-            peaks += Region(currentRegionStart, currentRegionEnd!!)
-            currentRegionStart = null
-            currentRegionEnd = null
+        if (aboveThreshold && currentRegionStart == null) {
+            currentRegionStart = chrIndex
         }
-
-        previousChrIndex = chrIndex
+        if(!aboveThreshold && currentRegionStart != null) {
+            peaks += Region(currentRegionStart, chrIndex-1)
+            currentRegionStart = null
+        }
     }
 
     return peaks
@@ -70,23 +63,25 @@ private fun windowSize(bandwidth: Double): Int {
 }
 
 /**
- * Compute the step.background. We get the average number of regions per window, then get n
+ * Compute the background. We get the average number of regions per window, then get n
  * random distributions of this many reads across the window. We repeat 1000 times; for
- * each repeat, we compute the step.PDF at the center; at high numbers of repeats, the
+ * each repeat, we compute the PDF at the center; at high numbers of repeats, the
  * distribution of PDFs should be near normal.
  */
 private fun background(lookupTable: List<Double>, numBins: Int, windowSize: Int, chrLength: Int): Background {
     val averageN = numBins * windowSize / chrLength
     val backgroundDist = mutableListOf<Double>()
     for (i in 0 until BACKGROUND_LIMIT) {
+        var bgVal = 0.0
         for (j in 0 until averageN) {
-            val x = abs(random() % (windowSize + 1) - windowSize / 2).toInt()
-            backgroundDist[i] += lookupTable[x]
+            val x = Random.nextInt(0, windowSize / 2)
+            bgVal += lookupTable[x]
         }
+        backgroundDist += bgVal
     }
 
     // Compute step.background average and standard deviation from the distribution.
-    val average = backgroundDist.sum() / BACKGROUND_LIMIT
+    val average = backgroundDist.average()
     val stdDev = sqrt(backgroundDist.sumByDouble { pow(it - average, 2.0) } / BACKGROUND_LIMIT)
     return Background(average, stdDev)
 }
