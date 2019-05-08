@@ -45,12 +45,11 @@ fun convolve(input: DoubleArray, kernel: List<Double>): List<Double> {
  */
 fun sampleSDev(stdDev: Double, size: Int): List<Double> {
     val a = 1.0 / stdDev / SQRT2PI
-    val output = MutableList(size * 2) { 0.0 }
+    val output = MutableList(size * 2 + 1) { 0.0 }
     for (i in 0 until size) {
         val value = a *
-                exp(-i.pow(2) / stdDev.pow(2)) *
-                (i.pow(2) - stdDev.pow(2)) /
-                stdDev.pow(4)
+                exp(-i * i / stdDev / stdDev / 2.0) *
+                (i * i - stdDev * stdDev) / stdDev.pow(4)
         output[size + i] = value
         output[size - i] = value
     }

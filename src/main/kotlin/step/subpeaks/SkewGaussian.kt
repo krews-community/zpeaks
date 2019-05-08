@@ -24,8 +24,10 @@ data class SkewGaussianParameters(
     var shape: Double
 ) : GaussianParameters
 
-fun fitSkew(pileUpValues: List<Double>, pileUpStart: Int) =
-    fit(pileUpValues, pileUpStart, ::initSkewParameters, ::optimizeSkew, ::skewParametersToRegion)
+typealias SkewSubPeak = SubPeak<SkewGaussianParameters>
+
+fun fitSkew(values: List<Double>, pileUpStart: Int) =
+    fit(values, pileUpStart, ::initSkewParameters, ::optimizeSkew, ::skewParametersToRegion)
 
 fun initSkewParameters(region: Region) = SkewGaussianParameters(
     amplitude = 0.0,
@@ -84,7 +86,8 @@ fun calculateJacobian(parameters: DoubleArray, curveLength: Int): Array<DoubleAr
     return jacobian
 }
 
-fun optimizeSkew(values: DoubleArray, gaussians: List<GaussianParameters>, lambda: Double): OptimizeResults {
+fun optimizeSkew(values: DoubleArray, gaussians: List<SkewGaussianParameters>, lambda: Double):
+        OptimizeResults<SkewGaussianParameters> {
     val avg = values.average()
 
     val optimizer = LevenbergMarquardtOptimizer()
@@ -99,7 +102,7 @@ fun optimizeSkew(values: DoubleArray, gaussians: List<GaussianParameters>, lambd
         initialParameters[j*4] = gaussians[j].amplitude
         initialParameters[j*4+1] = gaussians[j].mean
         initialParameters[j*4+2] = gaussians[j].stdDev
-        initialParameters[j*4+2] = (gaussians[j] as SkewGaussianParameters).shape
+        initialParameters[j*4+2] = gaussians[j].shape
     }
 
     val problem = LeastSquaresBuilder()
@@ -115,7 +118,7 @@ fun optimizeSkew(values: DoubleArray, gaussians: List<GaussianParameters>, lambd
 
     val optimum = optimizer.optimize(problem)
     val rawParameters = optimum.point
-    val optimizedParameters = mutableListOf<GaussianParameters>()
+    val optimizedParameters = mutableListOf<SkewGaussianParameters>()
     for (j in 0 until optimum.point.dimension step 4) {
         optimizedParameters += SkewGaussianParameters(rawParameters.getEntry(j), rawParameters.getEntry(j+1),
             rawParameters.getEntry(j+2), rawParameters.getEntry(j+3))

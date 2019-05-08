@@ -2,18 +2,18 @@ package step
 
 import java.lang.Math.*
 import model.*
-import mu.KotlinLogging
 import util.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
-
-private val log = KotlinLogging.logger {}
 
 const val BACKGROUND_LIMIT = 1000
 
 data class Background(val average: Double, val stdDev: Double)
 data class PDF(val values: Map<Int, Double>, val background: Background, val chrLength: Int)
 
+/**
+ * Using FSeq algorithm, calculate the probability density function for the given pile-up data
+ */
 fun pdf(chr: String, pileUpValues: Map<Int, Int>, pileUpSum: Int, chrLength: Int, bandwidth: Double, noAmplitude: Boolean): PDF {
     val windowSize = windowSize(bandwidth)
     val lookupTable = lookupTable(noAmplitude, windowSize, bandwidth, pileUpSum)
@@ -38,20 +38,31 @@ fun pdf(chr: String, pileUpValues: Map<Int, Int>, pileUpSum: Int, chrLength: Int
     return PDF(pdfValues, background, chrLength)
 }
 
-fun callPeaks(pdf: PDF, threshold: Double): List<Region> {
-    val peaks = mutableListOf<Region>()
+data class Peak(val region: Region, val score: Double)
+
+/**
+ * Find the peaks for the previous calculated PDF over a given threshold.
+ *
+ * @param threshold How many standard deviations above average the pdf value needs to be to serve
+ * as a cut-off for peaks
+ */
+fun callPeaks(pdf: PDF, threshold: Double): List<Peak> {
+    val peaks = mutableListOf<Peak>()
     var currentRegionStart: Int? = null
+    var currentRegionMax = 0.0
     for (chrIndex in 0 until pdf.chrLength) {
         val value = pdf.values.getOrDefault(chrIndex, 0.0)
-        val adjustedValue = (value - pdf.background.average) / pdf.background.stdDev
-        val aboveThreshold =  adjustedValue > threshold
+        currentRegionMax = max(currentRegionMax, value)
+        val stdDevsValue = (value - pdf.background.average) / pdf.background.stdDev
+        val aboveThreshold =  stdDevsValue > threshold
 
         if (aboveThreshold && currentRegionStart == null) {
             currentRegionStart = chrIndex
         }
         if(!aboveThreshold && currentRegionStart != null) {
-            peaks += Region(currentRegionStart, chrIndex-1)
+            peaks += Peak(Region(currentRegionStart, chrIndex-1), currentRegionMax)
             currentRegionStart = null
+            currentRegionMax = 0.0
         }
     }
 

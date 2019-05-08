@@ -1,12 +1,13 @@
 package step.subpeaks
 
 import model.*
+import mu.KotlinLogging
 import org.apache.commons.math3.linear.*
 import org.apache.commons.math3.linear.MatrixUtils.*
+import org.apache.commons.math3.util.FastMath.*
 import util.*
-import java.lang.Math.*
-import kotlin.math.pow
 
+private val log = KotlinLogging.logger {}
 
 interface GaussianParameters {
     var amplitude: Double
@@ -14,19 +15,19 @@ interface GaussianParameters {
     var stdDev: Double
 }
 
-data class SubPeak(
+data class SubPeak<T : GaussianParameters>(
     val region: Region,
     val score: Double,
-    val gaussianParameters: GaussianParameters
+    val gaussianParameters: T
 )
 
-data class OptimizeResults(
-    val parameters: List<GaussianParameters>,
+data class OptimizeResults<T : GaussianParameters>(
+    val parameters: List<T>,
     val error: Double,
     val iterations: Int
 )
 
-typealias Optimizer = (values: DoubleArray, gaussians: List<GaussianParameters>, lambda: Double) -> OptimizeResults
+typealias Optimizer<T> = (values: DoubleArray, gaussians: List<T>, lambda: Double) -> OptimizeResults<T>
 
 /**
  * Performs a gaussian fit on the given region and pushes output to the passed vectors
@@ -34,29 +35,29 @@ typealias Optimizer = (values: DoubleArray, gaussians: List<GaussianParameters>,
  * for large errors (>0.1) and splits large regions (>5kb) at the minimum element to avoid
  * very long fit times.
  *
- * pileUpValues: the vector of values to fit.
+ * values: the vector of values to fit.
  * pileUpRegion: the coordinates of the region being fit.
  */
-fun fit(
-    pileUpValues: List<Double>,
-    pileUpStart: Int,
-    initParameters: (region: Region) -> GaussianParameters,
-    optimize: Optimizer,
-    parametersToRegion: (parameters: GaussianParameters, offset: Int) -> Region
-): List<SubPeak> {
-    if (pileUpValues.size > 5000) {
-        val splitPileUp = splitAtMin(pileUpValues)
-        val firstFit = fit(splitPileUp.first, pileUpStart, initParameters, optimize, parametersToRegion)
+fun <T : GaussianParameters> fit(
+    values: List<Double>,
+    start: Int,
+    initParameters: (region: Region) -> T,
+    optimize: Optimizer<T>,
+    parametersToRegion: (parameters: T, offset: Int) -> Region
+): List<SubPeak<T>> {
+    if (values.size > 5000) {
+        val splitValues = splitAtMin(values)
+        val firstFit = fit(splitValues.first, start, initParameters, optimize, parametersToRegion)
         val secondFit = fit(
-            splitPileUp.second, pileUpStart + splitPileUp.first.size,
+            splitValues.second, start + splitValues.first.size,
             initParameters, optimize, parametersToRegion
         )
         return firstFit + secondFit
     }
 
     // Subtract out background
-    val min = pileUpValues.min()!!
-    val valuesWithoutBackground = pileUpValues.map { it - min }
+    val min = values.min()!!
+    val valuesWithoutBackground = values.map { it - min }
 
     // Put all on same scale
     val avg = valuesWithoutBackground.average()
@@ -75,7 +76,7 @@ fun fit(
     /*
      * Solve the system of linear equations to get the amplitude guesses
      */
-    val lim = pileUpValues.size
+    val lim = values.size
     val m = Array(gaussians.size) { DoubleArray(gaussians.size) }
     val d = DoubleArray(gaussians.size)
     val distributions = gaussians.map { gaussianDistribution(1.0, it.mean, it.stdDev, lim) }
@@ -100,6 +101,10 @@ fun fit(
         d[j] = value
     }
 
+    log.debug { "values: $values" }
+    log.debug { "candidate regions: $candidates" }
+    log.debug { "m: ${m.map { it.toList() }.toList()}" }
+    log.debug { "d: ${d.toList()}" }
     val r = LUDecomposition(createRealMatrix(m)).solver.solve(createRealVector(d))
 
     for (j in 0 until gaussians.size) {
@@ -114,7 +119,7 @@ fun fit(
      * Perform the actual fit of the curve to a sum of gaussians.size Gaussians
      * optimization is performed with the Levenberg-Marquardt algorithm
      */
-    var bestOptimized: OptimizeResults? = null
+    var bestOptimized: OptimizeResults<T>? = null
     for (j in 1 until gaussians.size) {
         val currentGuess = gaussians.subList(0, j)
         val optimizeResults = optimize(scaledValues, currentGuess, 0.1)
@@ -132,7 +137,7 @@ fun fit(
     bestOptimized!!.parameters.forEach { it.amplitude *= sqrtAvg }
 
     return bestOptimized.parameters.map {
-        SubPeak(parametersToRegion(it, pileUpStart), parametersToScore(it), it)
+        SubPeak(parametersToRegion(it, start), parametersToScore(it), it)
     }
 }
 
@@ -145,7 +150,7 @@ fun parametersToScore(parameters: GaussianParameters): Double = parameters.ampli
  *
  * values: input vector from which to generate the scale space image.
  */
-private fun scaleSpaceZeros(values: DoubleArray): List<Region> {
+fun scaleSpaceZeros(values: DoubleArray): List<Region> {
     val candidates = mutableListOf<Region>()
 
     // Start with a kernel near the square root of the vector size and loop down to 2
@@ -154,6 +159,7 @@ private fun scaleSpaceZeros(values: DoubleArray): List<Region> {
 
         // Smooth at this kernel width
         val blurred = scaleSpaceSmooth(values, kernelSize.toDouble())
+        log.info { "blurred: $blurred" }
 
         // Find zero crossings
         val zeroCrossings = mutableListOf<Int>()

@@ -12,6 +12,7 @@ version = "1.0.0"
 val artifactID = "zpeaks"
 
 repositories {
+    jcenter()
     mavenCentral()
 }
 
@@ -20,6 +21,7 @@ dependencies {
     compile("io.github.microutils","kotlin-logging","1.6.10")
     compile("ch.qos.logback", "logback-classic","1.2.3")
     compile("com.github.samtools", "htsjdk","2.19.0")
+    compile("org.jetbrains.bio", "big", "0.8.4")
     compile("org.ejml", "ejml-all", "0.38")
     compile("org.apache.commons", "commons-math3", "3.6.1")
 

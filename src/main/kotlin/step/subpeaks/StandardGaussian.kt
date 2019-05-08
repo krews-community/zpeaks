@@ -17,3 +17,6 @@ fun initStandardParameters(region: Region) = StandardGaussianParameters(
 
 fun curveValue(amplitude: Double, mean: Double, stdDev: Double, x: Double): Double =
         amplitude.pow(2) / stdDev * exp( -(x - mean) * (x - mean) / stdDev.pow(2) / 2)
+
+
+// TODO implement the rest or remove
