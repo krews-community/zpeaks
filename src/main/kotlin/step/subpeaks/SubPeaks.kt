@@ -6,6 +6,8 @@ import org.apache.commons.math3.linear.*
 import org.apache.commons.math3.linear.MatrixUtils.*
 import org.apache.commons.math3.util.FastMath.*
 import util.*
+import java.lang.Double.isNaN
+import java.lang.Exception
 
 private val log = KotlinLogging.logger {}
 
@@ -47,6 +49,7 @@ fun <T : GaussianParameters> fit(
 ): List<SubPeak<T>> {
     if (values.size > 5000) {
         val splitValues = splitAtMin(values)
+        log.info { "Splitting: ${values.size} to ${splitValues.first.size} and ${splitValues.second.size}" }
         val firstFit = fit(splitValues.first, start, initParameters, optimize, parametersToRegion)
         val secondFit = fit(
             splitValues.second, start + splitValues.first.size,
@@ -64,7 +67,7 @@ fun <T : GaussianParameters> fit(
     val scaledValues = valuesWithoutBackground.map { it / avg }.toDoubleArray()
 
     // Get initial candidates list
-    val candidates = scaleSpaceZeros(scaledValues)
+    val candidates = findCandidates(scaledValues)
 
     /*
      * here we compute guesses for the Gaussians' parameters based on zero crossing locations
@@ -72,6 +75,8 @@ fun <T : GaussianParameters> fit(
      * the amplitudes are fit to the data using least squares after the means and standard deviations are computed
      */
     val gaussians = candidates.map { initParameters(it) } as MutableList
+    log.debug { "Candidate gaussians size: ${gaussians.size}" }
+    log.debug { "Candidate gaussians: $gaussians" }
 
     /*
      * Solve the system of linear equations to get the amplitude guesses
@@ -101,16 +106,12 @@ fun <T : GaussianParameters> fit(
         d[j] = value
     }
 
-    log.debug { "values: $values" }
-    log.debug { "candidate regions: $candidates" }
-    log.debug { "m: ${m.map { it.toList() }.toList()}" }
-    log.debug { "d: ${d.toList()}" }
     val r = LUDecomposition(createRealMatrix(m)).solver.solve(createRealVector(d))
 
     for (j in 0 until gaussians.size) {
         val s = if (r.getEntry(j) < 0) -1.0 else 1.0
         // Set Amplitude
-        gaussians[j].amplitude = sqrt(abs(r.getEntry(j) * gaussians[j].stdDev) * s)
+        gaussians[j].amplitude = sqrt(abs(r.getEntry(j)) * gaussians[j].stdDev) * s
     }
     // Sort gaussians by amplitude
     gaussians.sortBy { it.amplitude * it.amplitude / it.stdDev }
@@ -120,10 +121,20 @@ fun <T : GaussianParameters> fit(
      * optimization is performed with the Levenberg-Marquardt algorithm
      */
     var bestOptimized: OptimizeResults<T>? = null
-    for (j in 1 until gaussians.size) {
-        val currentGuess = gaussians.subList(0, j)
+    var previousOptimized: OptimizeResults<T>? = null
+    for (j in 0 until gaussians.size) {
+        val currentGuess = if (previousOptimized != null) {
+            previousOptimized.parameters + gaussians[j]
+        } else {
+            gaussians.subList(0, j+1)
+        }
+
         val optimizeResults = optimize(scaledValues, currentGuess, 0.1)
+        log.debug { "Attempt #$j. Current guess size = ${currentGuess.size}. Error = ${optimizeResults.error}" }
+
+        previousOptimized = optimizeResults
         if (optimizeResults.error < 0.05) {
+            log.debug { "Answer has acceptable error < 0.05!" }
             bestOptimized = optimizeResults
             break
         }
@@ -132,13 +143,18 @@ fun <T : GaussianParameters> fit(
         }
     }
 
+    log.debug { "Optimized Result size: ${bestOptimized!!.parameters.size}" }
+    log.debug { "Optimized Result error: ${bestOptimized!!.error}" }
+    log.debug { "Optimized Result iterations: ${bestOptimized!!.iterations}" }
+    log.debug { "Optimized Result: $bestOptimized" }
     val sqrtAvg = sqrt(avg)
-    // Bring parameters back to original scale
-    bestOptimized!!.parameters.forEach { it.amplitude *= sqrtAvg }
-
-    return bestOptimized.parameters.map {
-        SubPeak(parametersToRegion(it, start), parametersToScore(it), it)
+    // Bring parameters back to original scale and add background back in. Also add offset to mean
+    bestOptimized!!.parameters.forEach {
+        it.amplitude *= sqrtAvg
+        it.mean += start
     }
+
+    return bestOptimized.parameters.map { SubPeak(parametersToRegion(it, start), parametersToScore(it), it) }
 }
 
 fun parametersToScore(parameters: GaussianParameters): Double = parameters.amplitude.pow(2) / parameters.stdDev
@@ -150,8 +166,8 @@ fun parametersToScore(parameters: GaussianParameters): Double = parameters.ampli
  *
  * values: input vector from which to generate the scale space image.
  */
-fun scaleSpaceZeros(values: DoubleArray): List<Region> {
-    val candidates = mutableListOf<Region>()
+fun findCandidates(values: DoubleArray): List<Region> {
+    var candidates = mutableListOf<Region>()
 
     // Start with a kernel near the square root of the vector size and loop down to 2
     val kernel = Math.floor(sqrt(values.size.toDouble()) * 1.1).toInt()
@@ -159,7 +175,6 @@ fun scaleSpaceZeros(values: DoubleArray): List<Region> {
 
         // Smooth at this kernel width
         val blurred = scaleSpaceSmooth(values, kernelSize.toDouble())
-        log.info { "blurred: $blurred" }
 
         // Find zero crossings
         val zeroCrossings = mutableListOf<Int>()
@@ -171,49 +186,47 @@ fun scaleSpaceZeros(values: DoubleArray): List<Region> {
             }
         }
 
-        // Match existing to nearest zero crossings in current iteration
-        val matched = MutableList(zeroCrossings.size) { false }
-        val candidateIter = candidates.listIterator()
-        candidateIter.forEach { candidate ->
-            // Find match for start and stop
-            var cStartMin = 1E308.toInt()
-            var cStopMin = 1E308.toInt()
-            var startMatch = -1
-            var stopMatch = -1
-            for (crossingIndex in 0 until zeroCrossings.size) {
-                if (matched[crossingIndex]) continue
-                val startDist = abs(candidate.start - crossingIndex)
-                val stopDist = abs(candidate.end - crossingIndex)
-                val len = candidate.end - candidate.start
-                if (startDist < cStartMin && startDist < len) {
-                    startMatch = crossingIndex
-                    cStartMin = startDist
-                } else if (stopDist <= cStopMin && stopDist < len) {
-                    stopMatch = crossingIndex
-                    cStopMin = stopDist
+        // Find matching zero-crossings in existing candidates
+        val currentCandidates = mutableListOf<Region>()
+        val matchedZeroCrossings = mutableSetOf<Int>()
+        for (candidate in candidates) {
+            val candidateLength = candidate.end - candidate.start
+            // Find the closest matching zero crossings within candidateLength to the current candidate
+            var startMatch: Int? = null
+            var startMatchDist: Int? = null
+            var endMatch: Int? = null
+            var endMatchDist: Int? = null
+            for (crossing in zeroCrossings) {
+                if (matchedZeroCrossings.contains(crossing)) continue
+                val startDist = abs(crossing - candidate.start)
+                val endDist = abs(crossing - candidate.end)
+                if (startDist < candidateLength && (startMatch == null || startDist < startMatchDist!!)) {
+                    startMatch = crossing
+                    startMatchDist = startDist
+                } else if (endDist < candidateLength && (endMatch == null || endDist < endMatchDist!!)) {
+                    endMatch = crossing
+                    endMatchDist = endDist
                 }
             }
 
-            // Skip if no match else adjust
-            if (stopMatch != -1 && startMatch != -1) {
-                matched[startMatch] = true
-                matched[stopMatch] = true
-                candidateIter.set(Region(zeroCrossings[startMatch], zeroCrossings[stopMatch]))
+            // If we got a match, add new match to candidates in place of old. Otherwise add old candidate.
+            if (startMatch != null && endMatch != null) {
+                matchedZeroCrossings += startMatch
+                matchedZeroCrossings += endMatch
+                currentCandidates += Region(startMatch, endMatch)
+            } else {
+                currentCandidates += candidate
             }
         }
 
-        // append unmatched zero crossings as new candidates
-        val unmatched = mutableListOf<Int>()
-        for ((crossingIndex, crossing) in zeroCrossings.withIndex()) {
-            if (!matched[crossingIndex]) unmatched += crossing
+        // Add unmatched zero crossings as new candidates
+        val unmatchedZeroCrossings = zeroCrossings.filter { !matchedZeroCrossings.contains(it) }
+        for (n in 1 until unmatchedZeroCrossings.size step 2) {
+            currentCandidates += Region(unmatchedZeroCrossings[n - 1], unmatchedZeroCrossings[n])
         }
-        for (n in 1 until unmatched.size step 2) {
-            candidates += Region(unmatched[n - 1], unmatched[n])
-        }
-    }
 
-    // Remove any uncompleted candidates before return
-    candidates.removeAll { c -> c.start == -1 || c.end == -1 }
+        candidates = currentCandidates
+    }
 
     return candidates
 }

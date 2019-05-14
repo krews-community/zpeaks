@@ -18,10 +18,14 @@ repositories {
 
 dependencies {
     implementation(kotlin("stdlib-jdk8"))
+    compile("com.github.ajalt", "clikt", "2.0.0")
     compile("io.github.microutils","kotlin-logging","1.6.10")
     compile("ch.qos.logback", "logback-classic","1.2.3")
     compile("com.github.samtools", "htsjdk","2.19.0")
-    compile("org.jetbrains.bio", "big", "0.8.4")
+    compile("org.jetbrains.bio", "big", "0.8.4") {
+        exclude("log4j")
+    }
+    compile("org.slf4j", "log4j-over-slf4j", "1.7.26")
     compile("org.ejml", "ejml-all", "0.38")
     compile("org.apache.commons", "commons-math3", "3.6.1")
 

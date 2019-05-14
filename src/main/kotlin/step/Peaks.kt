@@ -1,41 +1,56 @@
 package step
 
+import com.google.common.util.concurrent.AtomicDoubleArray
 import java.lang.Math.*
 import model.*
 import util.*
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.stream.IntStream
+import java.util.stream.Stream
 import kotlin.random.Random
 
 const val BACKGROUND_LIMIT = 1000
 
 data class Background(val average: Double, val stdDev: Double)
-data class PDF(val values: Map<Int, Double>, val background: Background, val chrLength: Int)
+
+class PDF(
+    private val values: AtomicDoubleArray,
+    val background: Background,
+    val chrLength: Int
+) {
+    operator fun get(bp: Int): Double = values[bp]
+}
 
 /**
  * Using FSeq algorithm, calculate the probability density function for the given pile-up data
  */
-fun pdf(chr: String, pileUpValues: Map<Int, Int>, pileUpSum: Int, chrLength: Int, bandwidth: Double, noAmplitude: Boolean): PDF {
+fun pdf(chr: String, pileUp: PileUp, bandwidth: Double, noAmplitude: Boolean,
+        onRange: IntRange? = null): PDF {
     val windowSize = windowSize(bandwidth)
-    val lookupTable = lookupTable(noAmplitude, windowSize, bandwidth, pileUpSum)
-    val pdfValues = ConcurrentHashMap<Int, Double>(pileUpValues.size * 2)
-
-    logProgress("FSeq PDF on $chr", pileUpValues.size) { tracker ->
-        pileUpValues.entries.parallelStream().forEach { (chrIndex, pileUpValue) ->
-            pdfValues.increment(chrIndex, pileUpValue * lookupTable[0])
+    val lookupTable = lookupTable(noAmplitude, windowSize, bandwidth, pileUp.sum)
+    val pdfValues = AtomicDoubleArray(pileUp.chromosomeLength)
+    logProgress("FSeq PDF on $chr", pileUp.chromosomeLength) { tracker ->
+        val start = onRange?.start ?: 0
+        val end = onRange?.endInclusive ?: pileUp.chromosomeLength
+        IntStream.range(start, end).parallel().forEach { chrIndex ->
+            val pileUpValue = pileUp[chrIndex]
+            if (pileUpValue == 0) return@forEach
+            pdfValues.addAndGet(chrIndex, pileUpValue * lookupTable[0])
             for (i in 1 until windowSize) {
-                if (chrIndex + i < chrLength) {
-                    pdfValues.increment(chrIndex + i, pileUpValue * lookupTable[i])
+                if (chrIndex + i < pileUp.chromosomeLength) {
+                    pdfValues.addAndGet(chrIndex + i, pileUpValue * lookupTable[i])
                 }
                 if (chrIndex - i > 0) {
-                    pdfValues.increment(chrIndex - i, pileUpValue * lookupTable[i])
+                    pdfValues.addAndGet(chrIndex - i, pileUpValue * lookupTable[i])
                 }
             }
             tracker.incrementAndGet()
         }
     }
 
-    val background = background(lookupTable, pileUpSum, windowSize, chrLength)
-    return PDF(pdfValues, background, chrLength)
+    val background = background(lookupTable, pileUp.sum, windowSize, pileUp.chromosomeLength)
+    return PDF(pdfValues, background, pileUp.chromosomeLength)
 }
 
 data class Peak(val region: Region, val score: Double)
@@ -51,7 +66,7 @@ fun callPeaks(pdf: PDF, threshold: Double): List<Peak> {
     var currentRegionStart: Int? = null
     var currentRegionMax = 0.0
     for (chrIndex in 0 until pdf.chrLength) {
-        val value = pdf.values.getOrDefault(chrIndex, 0.0)
+        val value = pdf[chrIndex]
         currentRegionMax = max(currentRegionMax, value)
         val stdDevsValue = (value - pdf.background.average) / pdf.background.stdDev
         val aboveThreshold =  stdDevsValue > threshold

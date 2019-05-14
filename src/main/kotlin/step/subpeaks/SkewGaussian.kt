@@ -30,7 +30,7 @@ fun fitSkew(values: List<Double>, pileUpStart: Int) =
     fit(values, pileUpStart, ::initSkewParameters, ::optimizeSkew, ::skewParametersToRegion)
 
 fun initSkewParameters(region: Region) = SkewGaussianParameters(
-    amplitude = 0.0,
+    amplitude = 0.0001,
     mean = (region.start + region.end) / 2.0,
     stdDev = (region.end - region.start) / 2.0,
     shape = 0.0
@@ -42,18 +42,19 @@ val SQRT2 = sqrt(2.0)
  * Calculate curve value at given x coordinate
  */
 fun curveValue(x: Int, amplitude: Double, mean: Double, stdDev: Double, shape: Double): Double {
-    return amplitude * amplitude / stdDev * exp( -(x - mean) * (x - mean) / stdDev * stdDev / 2) *
+    return amplitude * amplitude / stdDev *
+            exp( -(x - mean) * (x - mean) / stdDev / stdDev / 2) *
             (1.0 + erf(shape * (x - mean) / (stdDev * SQRT2)))
 }
 
 /**
  * Calculate curve for given parameters (in raw DoubleArray) form
  */
-fun calculateCurve(parameters: DoubleArray, curveLength: Int): DoubleArray {
+fun calculateSkewCurve(parameters: DoubleArray, curveLength: Int, start: Int = 0): DoubleArray {
     val curve = DoubleArray(curveLength) { 0.0 }
     for (j in 0 until curveLength) {
         for (k in 0 until parameters.size step 4) {
-            curve[j] += curveValue(j, parameters[k], parameters[k+1], parameters[k+2], parameters[k+3])
+            curve[j] += curveValue(j+start, parameters[k], parameters[k+1], parameters[k+2], parameters[k+3])
         }
     }
     return curve
@@ -61,7 +62,7 @@ fun calculateCurve(parameters: DoubleArray, curveLength: Int): DoubleArray {
 
 val SQRT_PI_OVER_2 = sqrt(PI / 2.0)
 
-fun calculateJacobian(parameters: DoubleArray, curveLength: Int): Array<DoubleArray> {
+fun calculateSkewJacobian(parameters: DoubleArray, curveLength: Int): Array<DoubleArray> {
     val jacobian = Array(curveLength) { DoubleArray(parameters.size) }
     for (j in 0 until curveLength) {
         for (k in 0 until parameters.size step 4) {
@@ -72,8 +73,7 @@ fun calculateJacobian(parameters: DoubleArray, curveLength: Int): Array<DoubleAr
             val dm = j - m
             val exp = exp(-dm * dm / (u * u * 2.0))
             val erf = 1.0 + erf(s * dm / (u * SQRT2))
-            val expp = dm * dm / (2 * u * u)
-            val expx = exp(-s * s * expp - expp)
+            val expx = exp(-s * s * dm * dm / (2 * u * u) - dm * dm / (2 * u * u))
             jacobian[j][k] = 2 * a * exp * erf / u // partial with respect to a
             jacobian[j][k+1] = (a * a * dm * exp * erf / (u * u * u)) -
                     expx * a * a * s / (u * u * SQRT_PI_OVER_2) // partial with respect to m
@@ -102,15 +102,15 @@ fun optimizeSkew(values: DoubleArray, gaussians: List<SkewGaussianParameters>, l
         initialParameters[j*4] = gaussians[j].amplitude
         initialParameters[j*4+1] = gaussians[j].mean
         initialParameters[j*4+2] = gaussians[j].stdDev
-        initialParameters[j*4+2] = gaussians[j].shape
+        initialParameters[j*4+3] = gaussians[j].shape
     }
 
     val problem = LeastSquaresBuilder()
-        .maxEvaluations(500)
-        .maxIterations(500)
+        .maxEvaluations(1000)
+        .maxIterations(1000)
         .model(
-            { parameters -> calculateCurve(parameters, values.size) },
-            { parameters -> calculateJacobian(parameters, values.size) }
+            { parameters -> calculateSkewCurve(parameters, values.size) },
+            { parameters -> calculateSkewJacobian(parameters, values.size) }
         )
         .start(initialParameters)
         .target(values)
@@ -126,9 +126,8 @@ fun optimizeSkew(values: DoubleArray, gaussians: List<SkewGaussianParameters>, l
     return OptimizeResults(optimizedParameters, optimum.rms, optimum.iterations)
 }
 
-fun skewParametersToRegion(parameters: GaussianParameters, offset: Int): Region {
-    val skewParameters = parameters as SkewGaussianParameters
-    val mode = skewMode(skewParameters) + offset
+fun skewParametersToRegion(parameters: SkewGaussianParameters, offset: Int): Region {
+    val mode = skewMode(parameters) + offset
     val start = mode - parameters.stdDev
     val stop = mode + parameters.stdDev
     return Region(start.toInt(), stop.toInt())

@@ -2,6 +2,8 @@ package util
 
 import java.nio.file.*
 
+val TEST_BAM_PATH = getResourcePath("ENCFF375IJW.chr22.bam")
+
 interface Junk
 
 fun getResourcePath(relativePath: String): Path {
