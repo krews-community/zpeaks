@@ -11,7 +11,7 @@ fun gaussianDistribution(a: Double, x: Double, u: Double, length: Int): List<Dou
  * Smooths the input vector using the second derivative of a Gaussian distribution
  * of the given width.
  */
-fun scaleSpaceSmooth(input: DoubleArray, kernelWidth: Double): List<Double> {
+fun scaleSpaceSmooth(input: List<Double>, kernelWidth: Double): List<Double> {
     val gaussianKernel = sampleSDev(kernelWidth, input.size)
     return convolve(input, gaussianKernel)
 }
@@ -19,7 +19,7 @@ fun scaleSpaceSmooth(input: DoubleArray, kernelWidth: Double): List<Double> {
 /**
  * Perform a 1d convolution with output list same length as input
  */
-fun convolve(input: DoubleArray, kernel: List<Double>): List<Double> {
+fun convolve(input: List<Double>, kernel: List<Double>): List<Double> {
     val output = mutableListOf<Double>()
     val kernelCenter = kernel.size / 2
     for (inputIndex in 0 until input.size) {

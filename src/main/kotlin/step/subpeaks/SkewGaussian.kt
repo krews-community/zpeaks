@@ -3,6 +3,7 @@ package step.subpeaks
 import model.Region
 import org.apache.commons.math3.fitting.leastsquares.LeastSquaresBuilder
 import org.apache.commons.math3.fitting.leastsquares.LevenbergMarquardtOptimizer
+import org.apache.commons.math3.linear.RealVector
 import org.apache.commons.math3.special.Erf.erf
 import org.apache.commons.math3.util.FastMath.*
 import org.apache.commons.math3.util.Precision
@@ -26,8 +27,8 @@ data class SkewGaussianParameters(
 
 typealias SkewSubPeak = SubPeak<SkewGaussianParameters>
 
-fun fitSkew(values: List<Double>, pileUpStart: Int) =
-    fit(values, pileUpStart, ::initSkewParameters, ::optimizeSkew, ::skewParametersToRegion)
+val skewFitter = SubPeakFitter(::initSkewParameters, ::optimizeSkew, ::skewParametersToRegion)
+fun fitSkew(values: List<Double>, pileUpStart: Int): Fit<SkewGaussianParameters> = skewFitter.fit(values, pileUpStart)
 
 fun initSkewParameters(region: Region) = SkewGaussianParameters(
     amplitude = 0.0001,
@@ -86,32 +87,37 @@ fun calculateSkewJacobian(parameters: DoubleArray, curveLength: Int): Array<Doub
     return jacobian
 }
 
-fun optimizeSkew(values: DoubleArray, gaussians: List<SkewGaussianParameters>, lambda: Double):
+typealias CandidateSkewGaussian = CandidateGaussian<SkewGaussianParameters>
+
+fun optimizeSkew(values: DoubleArray,
+                 candidateGaussians: List<CandidateSkewGaussian>,
+                 initialGaussians: List<SkewGaussianParameters>):
         OptimizeResults<SkewGaussianParameters> {
     val avg = values.average()
 
     val optimizer = LevenbergMarquardtOptimizer()
-        .withInitialStepBoundFactor(lambda)
+        .withInitialStepBoundFactor(0.1)
         .withCostRelativeTolerance(avg * 1e-4)
         .withParameterRelativeTolerance(avg * 1e-8)
         .withOrthoTolerance(avg * 1e-3)
         .withRankingThreshold(Precision.SAFE_MIN)
 
-    val initialParameters = DoubleArray(gaussians.size * 4)
-    for (j in 0 until gaussians.size) {
-        initialParameters[j*4] = gaussians[j].amplitude
-        initialParameters[j*4+1] = gaussians[j].mean
-        initialParameters[j*4+2] = gaussians[j].stdDev
-        initialParameters[j*4+3] = gaussians[j].shape
+    val initialParameters = DoubleArray(initialGaussians.size * 4)
+    for (j in 0 until initialGaussians.size) {
+        initialParameters[j*4] = initialGaussians[j].amplitude
+        initialParameters[j*4+1] = initialGaussians[j].mean
+        initialParameters[j*4+2] = initialGaussians[j].stdDev
+        initialParameters[j*4+3] = initialGaussians[j].shape
     }
 
     val problem = LeastSquaresBuilder()
         .maxEvaluations(1000)
         .maxIterations(1000)
         .model(
-            { parameters -> calculateSkewCurve(parameters, values.size) },
-            { parameters -> calculateSkewJacobian(parameters, values.size) }
+            { params -> calculateSkewCurve(params, values.size) },
+            { params -> calculateSkewJacobian(params, values.size) }
         )
+        .parameterValidator { params -> validateSkewParameters(params, candidateGaussians) }
         .start(initialParameters)
         .target(values)
         .build()
@@ -124,6 +130,28 @@ fun optimizeSkew(values: DoubleArray, gaussians: List<SkewGaussianParameters>, l
             rawParameters.getEntry(j+2), rawParameters.getEntry(j+3))
     }
     return OptimizeResults(optimizedParameters, optimum.rms, optimum.iterations)
+}
+
+const val MAX_SKEW = 10
+const val MAX_STD_DEV = 400
+
+fun validateSkewParameters(params: RealVector, candidateGaussians: List<CandidateSkewGaussian>): RealVector {
+    val validated = params.copy()
+    for (j in 0 until candidateGaussians.size) {
+        val amplitude = params.getEntry(j*4)
+        if (amplitude < 0) validated.setEntry(j*4, candidateGaussians[j].parameters.amplitude)
+        val mean = params.getEntry(j*4+1)
+        if (mean < candidateGaussians[j].region.start || mean > candidateGaussians[j].region.end) {
+            validated.setEntry(j*4+1, candidateGaussians[j].parameters.mean)
+        }
+        val stdDev = params.getEntry(j*4+2)
+        if (stdDev <= 0 || stdDev > MAX_STD_DEV) {
+            validated.setEntry(j*4+2, candidateGaussians[j].parameters.stdDev)
+        }
+        val shape = params.getEntry(j*4+3)
+        if (abs(shape ) > MAX_SKEW) validated.setEntry(j*4+3, 0.0)
+    }
+    return validated
 }
 
 fun skewParametersToRegion(parameters: SkewGaussianParameters, offset: Int): Region {

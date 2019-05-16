@@ -17,6 +17,16 @@ interface GaussianParameters {
     var stdDev: Double
 }
 
+data class CandidateGaussian<T : GaussianParameters>(
+    val region: Region,
+    val parameters: T
+)
+
+data class Fit<T: GaussianParameters>(
+    val subPeaks: List<SubPeak<T>>,
+    val error: Double
+)
+
 data class SubPeak<T : GaussianParameters>(
     val region: Region,
     val score: Double,
@@ -29,132 +39,182 @@ data class OptimizeResults<T : GaussianParameters>(
     val iterations: Int
 )
 
-typealias Optimizer<T> = (values: DoubleArray, gaussians: List<T>, lambda: Double) -> OptimizeResults<T>
+typealias Optimizer<T> = (values: DoubleArray, candidateGaussians: List<CandidateGaussian<T>>, gaussians: List<T>) -> OptimizeResults<T>
 
-/**
- * Performs a gaussian fit on the given region and pushes output to the passed vectors
- * for scores, regions, and parameters. This method will retry the fit up to five times
- * for large errors (>0.1) and splits large regions (>5kb) at the minimum element to avoid
- * very long fit times.
- *
- * values: the vector of values to fit.
- * pileUpRegion: the coordinates of the region being fit.
- */
-fun <T : GaussianParameters> fit(
-    values: List<Double>,
-    start: Int,
-    initParameters: (region: Region) -> T,
-    optimize: Optimizer<T>,
-    parametersToRegion: (parameters: T, offset: Int) -> Region
-): List<SubPeak<T>> {
-    if (values.size > 5000) {
-        val splitValues = splitAtMin(values)
-        log.info { "Splitting: ${values.size} to ${splitValues.first.size} and ${splitValues.second.size}" }
-        val firstFit = fit(splitValues.first, start, initParameters, optimize, parametersToRegion)
-        val secondFit = fit(
-            splitValues.second, start + splitValues.first.size,
-            initParameters, optimize, parametersToRegion
+const val SOFT_MAX_CANDIDATES = 5
+const val SOFT_MAX_CUT_RATIO = 0.05
+const val HARD_MAX_CANDIDATES = 15
+
+class SubPeakFitter<T: GaussianParameters> (
+    private val initParameters: (region: Region) -> T,
+    private val optimize: Optimizer<T>,
+    private val parametersToRegion: (parameters: T, offset: Int) -> Region
+) {
+
+    /**
+     * Performs a gaussian fit on the given region and pushes output to the passed vectors
+     * for scores, regions, and parameters.
+     */
+    fun fit(values: List<Double>, start: Int): Fit<T> {
+        // Subtract out background
+        val min = values.min()!!
+        val valuesWithoutBackground = values.map { it - min }
+
+        // Get initial candidates list
+        val candidates = findCandidates(valuesWithoutBackground)
+
+        val splitPeaks = split(PreparedPeakData(start, valuesWithoutBackground, candidates))
+        val fits = splitPeaks.map { fitCandidates(it) }
+
+        return Fit(
+            subPeaks = fits.flatMap { it.subPeaks },
+            error = fits.sumByDouble { it.error } / fits.size
         )
-        return firstFit + secondFit
     }
 
-    // Subtract out background
-    val min = values.min()!!
-    val valuesWithoutBackground = values.map { it - min }
+    private data class PreparedPeakData(
+        val start: Int,
+        val valuesWithoutBackground: List<Double>,
+        val candidates: List<Region>
+    )
 
-    // Put all on same scale
-    val avg = valuesWithoutBackground.average()
-    val scaledValues = valuesWithoutBackground.map { it / avg }.toDoubleArray()
+    private fun split(peak: PreparedPeakData): List<PreparedPeakData> {
+        val splitPeaks = mutableListOf<PreparedPeakData>()
+        var peaksToSplit = mutableListOf(peak)
 
-    // Get initial candidates list
-    val candidates = findCandidates(scaledValues)
+        while (peaksToSplit.isNotEmpty()) {
+            val nextPeaksToSplit = mutableListOf<PreparedPeakData>()
+            for (p in peaksToSplit) {
+                if (shouldSplit(peak)) {
+                    val minIndex = p.valuesWithoutBackground.indexOfMin()!!
+                    nextPeaksToSplit += PreparedPeakData(
+                        start = p.start,
+                        valuesWithoutBackground = p.valuesWithoutBackground.subList(0, minIndex),
+                        candidates = p.candidates.filter { it.start < minIndex }
+                    )
+                    nextPeaksToSplit += PreparedPeakData(
+                        start = p.start + minIndex,
+                        valuesWithoutBackground = p.valuesWithoutBackground.subList(minIndex, p.valuesWithoutBackground.size),
+                        candidates = p.candidates.filter { it.start > minIndex }
+                    )
+                } else {
+                    splitPeaks += p
+                }
+            }
+            peaksToSplit = nextPeaksToSplit
+        }
 
-    /*
-     * here we compute guesses for the Gaussians' parameters based on zero crossing locations
-     * the means and standard deviations are computed with simple equations
-     * the amplitudes are fit to the data using least squares after the means and standard deviations are computed
-     */
-    val gaussians = candidates.map { initParameters(it) } as MutableList
-    log.debug { "Candidate gaussians size: ${gaussians.size}" }
-    log.debug { "Candidate gaussians: $gaussians" }
+        return splitPeaks.sortedBy { it.start }
+    }
 
-    /*
-     * Solve the system of linear equations to get the amplitude guesses
-     */
-    val lim = values.size
-    val m = Array(gaussians.size) { DoubleArray(gaussians.size) }
-    val d = DoubleArray(gaussians.size)
-    val distributions = gaussians.map { gaussianDistribution(1.0, it.mean, it.stdDev, lim) }
+    private fun shouldSplit(peak: PreparedPeakData): Boolean {
+        if (peak.candidates.size <= SOFT_MAX_CANDIDATES) return false
+        if (peak.candidates.size > HARD_MAX_CANDIDATES) return true
+        val minMaxRatio = peak.valuesWithoutBackground.min()!! / peak.valuesWithoutBackground.max()!!
+        return minMaxRatio <= SOFT_MAX_CUT_RATIO
+    }
 
-    // Set coefficients: sum all bp x of (sum all gaussians j of (kth gaussian(x) * jth gaussian(x)))
-    for (j in 0 until gaussians.size) {
-        for (k in 0 until gaussians.size) {
+    private fun bestSplitIndex(values: List<Double>, candidates: List<Region>) {
+        //val localMinima = values.localMinima()
+        TODO("")
+    }
+
+    private fun fitCandidates(peak: PreparedPeakData): Fit<T> {
+        // Put all on same scale
+        val avg = peak.valuesWithoutBackground.average()
+        val scaledValues = peak.valuesWithoutBackground.map { it / avg }.toDoubleArray()
+
+        /*
+         * here we compute guesses for the Gaussians' parameters based on zero crossing locations
+         * the means and standard deviations are computed with simple equations
+         * the amplitudes are fit to the data using least squares after the means and standard deviations are computed
+         */
+        val candidateGaussians = peak.candidates.map { CandidateGaussian(it, initParameters(it)) } as MutableList
+
+        /*
+         * Solve the system of linear equations to get the amplitude guesses
+         */
+        val lim = peak.valuesWithoutBackground.size
+        val m = Array(candidateGaussians.size) { DoubleArray(candidateGaussians.size) }
+        val d = DoubleArray(candidateGaussians.size)
+        val distributions = candidateGaussians
+            .map { gaussianDistribution(1.0, it.parameters.mean, it.parameters.stdDev, lim) }
+
+        // Set coefficients: sum all bp x of (sum all gaussians j of (kth gaussian(x) * jth gaussian(x)))
+        for (j in 0 until candidateGaussians.size) {
+            for (k in 0 until candidateGaussians.size) {
+                var value = 0.0
+                for (n in 0 until lim) {
+                    value += distributions[k][n] * distributions[j][n]
+                }
+                m[k][j] = value
+            }
+        }
+
+        // Set values: sum all bp x of (curve value x * jth gaussian(x))
+        for (j in 0 until candidateGaussians.size) {
             var value = 0.0
             for (n in 0 until lim) {
-                value += distributions[k][n] * distributions[j][n]
+                value += distributions[j][n] * scaledValues[n]
             }
-            m[k][j] = value
-        }
-    }
-
-    // Set values: sum all bp x of (curve value x * jth gaussian(x))
-    for (j in 0 until gaussians.size) {
-        var value = 0.0
-        for (n in 0 until lim) {
-            value += distributions[j][n] * scaledValues[n]
-        }
-        d[j] = value
-    }
-
-    val r = LUDecomposition(createRealMatrix(m)).solver.solve(createRealVector(d))
-
-    for (j in 0 until gaussians.size) {
-        val s = if (r.getEntry(j) < 0) -1.0 else 1.0
-        // Set Amplitude
-        gaussians[j].amplitude = sqrt(abs(r.getEntry(j)) * gaussians[j].stdDev) * s
-    }
-    // Sort gaussians by amplitude
-    gaussians.sortBy { it.amplitude * it.amplitude / it.stdDev }
-
-    /*
-     * Perform the actual fit of the curve to a sum of gaussians.size Gaussians
-     * optimization is performed with the Levenberg-Marquardt algorithm
-     */
-    var bestOptimized: OptimizeResults<T>? = null
-    var previousOptimized: OptimizeResults<T>? = null
-    for (j in 0 until gaussians.size) {
-        val currentGuess = if (previousOptimized != null) {
-            previousOptimized.parameters + gaussians[j]
-        } else {
-            gaussians.subList(0, j+1)
+            d[j] = value
         }
 
-        val optimizeResults = optimize(scaledValues, currentGuess, 0.1)
-        log.debug { "Attempt #$j. Current guess size = ${currentGuess.size}. Error = ${optimizeResults.error}" }
+        val r = LUDecomposition(createRealMatrix(m)).solver.solve(createRealVector(d))
 
-        previousOptimized = optimizeResults
-        if (optimizeResults.error < 0.05) {
-            log.debug { "Answer has acceptable error < 0.05!" }
-            bestOptimized = optimizeResults
-            break
+        for (j in 0 until candidateGaussians.size) {
+            val s = if (r.getEntry(j) < 0) -1.0 else 1.0
+            // Set Amplitude
+            candidateGaussians[j].parameters.amplitude = sqrt(abs(r.getEntry(j)) * candidateGaussians[j].parameters.stdDev) * s
         }
-        if (bestOptimized == null || optimizeResults.error < bestOptimized.error) {
-            bestOptimized = optimizeResults
+        // Sort gaussians by amplitude
+        candidateGaussians.sortByDescending { it.parameters.amplitude * it.parameters.amplitude / it.parameters.stdDev }
+
+        log.debug { "Candidate gaussians size: ${candidateGaussians.size}" }
+        log.debug { "Candidate gaussians: $candidateGaussians" }
+
+        /*
+         * Perform the actual fit of the curve to a sum of gaussians.size Gaussians
+         * optimization is performed with the Levenberg-Marquardt algorithm
+         */
+        var bestOptimized: OptimizeResults<T>? = null
+        var previousOptimized: OptimizeResults<T>? = null
+        for (j in 0 until candidateGaussians.size) {
+            val currentGuess =
+                candidateGaussians.subList(0, j+1).map { it.parameters }
+            //(previousOptimized?.parameters ?: listOf()) + candidateGaussians[j].parameters
+
+            val optimizeResults = optimize(scaledValues, candidateGaussians.subList(0, j+1), currentGuess)
+            log.debug { "Attempt #$j. Current guess size = ${currentGuess.size}. Error = ${optimizeResults.error}" }
+
+            previousOptimized = optimizeResults
+            if (optimizeResults.error < 0.05) {
+                log.debug { "Answer has acceptable error < 0.05!" }
+                bestOptimized = optimizeResults
+                break
+            }
+            if (bestOptimized == null || optimizeResults.error < bestOptimized.error) {
+                bestOptimized = optimizeResults
+            }
         }
-    }
 
-    log.debug { "Optimized Result size: ${bestOptimized!!.parameters.size}" }
-    log.debug { "Optimized Result error: ${bestOptimized!!.error}" }
-    log.debug { "Optimized Result iterations: ${bestOptimized!!.iterations}" }
-    log.debug { "Optimized Result: $bestOptimized" }
-    val sqrtAvg = sqrt(avg)
-    // Bring parameters back to original scale and add background back in. Also add offset to mean
-    bestOptimized!!.parameters.forEach {
-        it.amplitude *= sqrtAvg
-        it.mean += start
-    }
+        log.debug { "Optimized Result size: ${bestOptimized!!.parameters.size}" }
+        log.debug { "Optimized Result error: ${bestOptimized!!.error}" }
+        log.debug { "Optimized Result iterations: ${bestOptimized!!.iterations}" }
+        log.debug { "Optimized Result: $bestOptimized" }
+        val sqrtAvg = sqrt(avg)
+        // Bring parameters back to original scale and add background back in. Also add offset to mean
+        bestOptimized!!.parameters.forEach {
+            it.amplitude *= sqrtAvg
+            it.mean += peak.start
+        }
 
-    return bestOptimized.parameters.map { SubPeak(parametersToRegion(it, start), parametersToScore(it), it) }
+        val subPeaks = bestOptimized.parameters
+            .sortedBy { it.mean }
+            .map { SubPeak(parametersToRegion(it, peak.start), parametersToScore(it), it) }
+
+        return Fit(subPeaks, bestOptimized.error)
+    }
 }
 
 fun parametersToScore(parameters: GaussianParameters): Double = parameters.amplitude.pow(2) / parameters.stdDev
@@ -166,7 +226,13 @@ fun parametersToScore(parameters: GaussianParameters): Double = parameters.ampli
  *
  * values: input vector from which to generate the scale space image.
  */
-fun findCandidates(values: DoubleArray): List<Region> {
+fun findCandidates(values: List<Double>): List<Region> {
+    // This method is slow for array with length > 5000
+    if (values.size > 5000) {
+        val (first, second) = splitAtMin(values)
+        return findCandidates(first) + findCandidates(second)
+    }
+
     var candidates = mutableListOf<Region>()
 
     // Start with a kernel near the square root of the vector size and loop down to 2

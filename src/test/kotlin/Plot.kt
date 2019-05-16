@@ -7,13 +7,11 @@ import util.*
 import org.knowm.xchart.style.lines.SeriesLines
 import org.knowm.xchart.style.markers.SeriesMarkers
 import step.subpeaks.*
-import java.nio.file.Path
 import kotlin.math.min
-import kotlin.random.Random
 
 private val log = KotlinLogging.logger {}
 
-@Disabled
+@Tag("manual")
 class Plot {
 
     @AfterEach fun stop() = Thread.sleep(Long.MAX_VALUE)
@@ -49,16 +47,15 @@ class Plot {
     fun `Plot Sub-Peaks`() {
         val sampleRange =
             //10_000_000 until 15_000_000 // Small - Single curve
-            // 41_000_000 until 42_000_000 // Medium size - does well
-            44_000_000 until 46_000_000 // Medium size - does poorly
-            //46_000_000 until 47_000_000 // Largest
+            //41_000_000 until 42_000_000 // Medium
+            //44_000_000 until 46_000_000 // Medium
+            46_000_000 until 47_000_000 // Largest
         val pileUp = pileUpSam(TEST_BAM_PATH, Strand.BOTH, false, PileUpAlgorithm.START)
             .getValue(TEST_BAM_CHR)
 
         val pdf = pdf(TEST_BAM_CHR, pileUp, 50.0, false, sampleRange)
         val peaks = callPeaks(pdf, 6.0)
         val maxPeak = peaks.maxBy { it.region.end - it.region.start }
-        log.info { "maxPeak: $maxPeak" }
 
         val bpUnits = BPUnits.KBP
         val peakRegion = maxPeak!!.region
@@ -74,8 +71,6 @@ class Plot {
                 region.end - region.start - 1, region.start)
         }
         val peakMin = peaksChartData.yValues.filter { it > 0.0 }.min() ?: 0.0
-        log.info { "all yValues: ${peaksChartData.yValues}" }
-        log.info { "peakMin $peakMin" }
         val subPeaksChartData = bpData(displayRange, bpUnits) { bp ->
             subPeakValues.sumByDouble { curve ->
                 curve[bp - maxPeak.region.start]

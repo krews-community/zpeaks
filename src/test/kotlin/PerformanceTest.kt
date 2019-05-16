@@ -1,11 +1,15 @@
 import io.writeSkewSubPeaksBed
 import model.*
+import mu.KotlinLogging
 import org.junit.jupiter.api.*
 import step.*
+import step.subpeaks.*
 import util.TEST_BAM_PATH
 import java.nio.file.*
 
-@Disabled
+private val log = KotlinLogging.logger {}
+
+@Tag("manual")
 class PerformanceTest {
 
     @Test
@@ -34,6 +38,36 @@ class PerformanceTest {
         val subPeaksOut = testDir.resolve(subPeaksFilename)
         writeSkewSubPeaksBed(subPeaksOut, "chr22", subPeaks)
         Files.copy(subPeaksOut, TEST_BAM_PATH.resolveSibling(subPeaksFilename), StandardCopyOption.REPLACE_EXISTING)
+    }
+
+    @Test
+    fun `Run Skew Sub-Peaks many times for one peak and take the average score`() {
+        val sampleRange =
+            //10_000_000 until 15_000_000 // Small - Single curve
+            41_000_000 until 42_000_000 // Medium 1
+            //44_000_000 until 46_000_000 // Medium 2
+            //46_000_000 until 47_000_000 // Largest
+
+        val pileUp = pileUpSam(TEST_BAM_PATH, Strand.BOTH, false, PileUpAlgorithm.START)
+            .getValue(TEST_BAM_CHR)
+
+        val errors = mutableSetOf<Double>()
+        val times = mutableSetOf<Long>()
+        repeat(25) {
+            val pdf = pdf(TEST_BAM_CHR, pileUp, 50.0, false, sampleRange)
+            val peaks = callPeaks(pdf, 6.0)
+            val maxPeak = peaks.maxBy { it.region.end - it.region.start }
+
+            val peakRegion = maxPeak!!.region
+            val peakValues = (peakRegion.start..peakRegion.end).map { pdf[it] }
+
+            val startTime = System.currentTimeMillis()
+            val fit = fitSkew(peakValues, peakRegion.start)
+            errors += fit.error
+            times += System.currentTimeMillis() - startTime
+        }
+        log.info { "Average error: ${errors.average()}" }
+        log.info { "Average time: ${times.average()}" }
     }
 
 }

@@ -1,5 +1,8 @@
 package util
 
+import com.github.ajalt.clikt.parameters.options.RawOption
+import com.github.ajalt.clikt.parameters.types.choice
+import com.google.common.base.CaseFormat
 import mu.KotlinLogging
 import org.apache.commons.math3.util.FastMath
 import java.util.concurrent.Executors
@@ -22,6 +25,11 @@ fun logProgress(name: String, total: Int, run: (tracker: AtomicInteger) -> Unit)
     logJob?.cancel(false)
     logExecutor.shutdown()
 }
+
+/**
+ * Extension function to get enum name in lower-hyphen-format
+ */
+val Enum<*>.lowerHyphenName: String get() = CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.LOWER_HYPHEN, this.name)
 
 /**
  * Convenience method to util.increment for a key on a mutable map of integers.

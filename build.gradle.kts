@@ -39,7 +39,10 @@ tasks.withType<KotlinCompile> {
 }
 
 tasks.withType<Test> {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        // Performance tests and Plotting tests should be filtered out for runs with builds.
+        if (!project.hasProperty("manual")) excludeTags("manual")
+    }
     testLogging {
         events("passed", "skipped", "failed")
     }

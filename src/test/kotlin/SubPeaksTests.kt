@@ -11,7 +11,7 @@ class SubPeaksTests {
     @Test
     fun `test candidate selection`() {
         val values = sampleGaussian(4.0, 2.0, 25, 50)
-        val candidates = findCandidates(values.toDoubleArray())
+        val candidates = findCandidates(values)
         assertThat(candidates.size).isEqualTo(1)
     }
 }
