@@ -62,8 +62,8 @@ class PerformanceTest {
             val peakValues = (peakRegion.start..peakRegion.end).map { pdf[it] }
 
             val startTime = System.currentTimeMillis()
-            val fit = fitSkew(peakValues, peakRegion.start)
-            errors += fit.error
+            val fits = fitSkew(peakValues, peakRegion.start)
+            errors += fits.map { it.error }.average()
             times += System.currentTimeMillis() - startTime
         }
         log.info { "Average error: ${errors.average()}" }

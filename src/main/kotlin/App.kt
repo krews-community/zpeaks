@@ -100,7 +100,9 @@ fun runSkewSubPeaks(pdf: PDF, peaks: List<Peak>, parallelism: Int): List<SkewSub
         val start = System.currentTimeMillis()
         val region = peak.region
         val peakValues = (region.start..region.end).map { pdf[it] }
-        subPeaks += fitSkew(peakValues, region.start).subPeaks
+        subPeaks += fitSkew(peakValues, region.start).flatMap { fit ->
+            fit.subPeaks
+        }
         val elapsed = (System.currentTimeMillis() - start) / 1000.0
         log.info { "Job took $elapsed seconds" }
     }

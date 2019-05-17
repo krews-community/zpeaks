@@ -7,6 +7,7 @@ import util.*
 import org.knowm.xchart.style.lines.SeriesLines
 import org.knowm.xchart.style.markers.SeriesMarkers
 import step.subpeaks.*
+import java.awt.Color
 import kotlin.math.min
 
 private val log = KotlinLogging.logger {}
@@ -49,7 +50,8 @@ class Plot {
             //10_000_000 until 15_000_000 // Small - Single curve
             //41_000_000 until 42_000_000 // Medium
             //44_000_000 until 46_000_000 // Medium
-            46_000_000 until 47_000_000 // Largest
+            46_075_000 until 46_100_000 // Large
+            //46_050_000 until 46_075_000 // Largest
         val pileUp = pileUpSam(TEST_BAM_PATH, Strand.BOTH, false, PileUpAlgorithm.START)
             .getValue(TEST_BAM_CHR)
 
@@ -59,35 +61,59 @@ class Plot {
 
         val bpUnits = BPUnits.KBP
         val peakRegion = maxPeak!!.region
-        val displayRange = peakRegion.start until peakRegion.end-1 withNSteps 500
+        val displayRange = peakRegion.start until peakRegion.end-1 withNSteps 1000
         val peaksChartData = bpData(displayRange, bpUnits) { pdf[it] }
         val chart = xyAreaChart("Peak", bpUnits, peaksChartData)
 
-        val subPeaks = runSkewSubPeaks(pdf, listOf(maxPeak), 1)
-        val subPeakValues = subPeaks.map { subPeak ->
-            val params = subPeak.gaussianParameters
-            val region = maxPeak.region
-            calculateSkewCurve(doubleArrayOf(params.amplitude, params.mean, params.stdDev, params.shape),
-                region.end - region.start - 1, region.start)
-        }
-        val peakMin = peaksChartData.yValues.filter { it > 0.0 }.min() ?: 0.0
-        val subPeaksChartData = bpData(displayRange, bpUnits) { bp ->
-            subPeakValues.sumByDouble { curve ->
-                curve[bp - maxPeak.region.start]
-            } + peakMin
-        }
-        val subPeaksSeries = chart.addSeries("SubPeaks", subPeaksChartData.xValues, subPeaksChartData.yValues)
-        subPeaksSeries.marker = SeriesMarkers.NONE
+        val region = maxPeak.region
+        val peakValues = (region.start..region.end).map { pdf[it] }
+        val fits = fitSkew(peakValues, maxPeak.region.start)
 
-        for ((subPeakIndex, subPeak) in subPeakValues.withIndex()) {
-            val subPeakChartData = bpData(displayRange, bpUnits) { bp ->
-                subPeak[bp - maxPeak.region.start] + peakMin
+        for ((fitIndex, fit) in fits.withIndex()) {
+            val fitDisplayRange = fit.region.start until fit.region.end-1 withNSteps 300
+
+            val subPeakValues = fit.subPeaks.map { subPeak ->
+                val params = subPeak.gaussianParameters
+                calculateSkewCurve(
+                    doubleArrayOf(params.amplitude, params.mean, params.stdDev, params.shape),
+                    fit.region.end - fit.region.start, fit.region.start
+                )
             }
-            val subPeakSeries = chart.addSeries("SubPeak-$subPeakIndex", subPeakChartData.xValues, subPeakChartData.yValues)
-            subPeakSeries.marker = SeriesMarkers.NONE
+            val subPeaksChartData = bpData(fitDisplayRange, bpUnits) { bp ->
+                subPeakValues.sumByDouble { curve ->
+                    curve[bp - fit.region.start]
+                } + fit.background
+            }
+            val subPeaksSeries = chart.addSeries("Fit-$fitIndex", subPeaksChartData.xValues, subPeaksChartData.yValues)
+            subPeaksSeries.lineColor = Color.BLACK
+            subPeaksSeries.marker = SeriesMarkers.NONE
+
+            for ((subPeakIndex, subPeak) in subPeakValues.withIndex()) {
+                val subPeakChartData = bpData(fitDisplayRange, bpUnits) { bp ->
+                    subPeak[bp - fit.region.start] + fit.background
+                }
+                val subPeakSeries = chart.addSeries(
+                    "Fit-$fitIndex:SubPeak-$subPeakIndex",
+                    subPeakChartData.xValues,
+                    subPeakChartData.yValues
+                )
+                subPeakSeries.marker = SeriesMarkers.NONE
+                subPeakSeries.lineStyle = SeriesLines.DOT_DOT
+            }
         }
 
         SwingWrapper(chart).displayChart()
+    }
+
+    @Test
+    fun `Plot Scale-Space`() {
+        val sampleRange = 46_075_000 until 46_100_000
+        val pileUp = pileUpSam(TEST_BAM_PATH, Strand.BOTH, false, PileUpAlgorithm.START)
+            .getValue(TEST_BAM_CHR)
+
+        val pdf = pdf(TEST_BAM_CHR, pileUp, 50.0, false, sampleRange)
+        val peaks = callPeaks(pdf, 6.0)
+        val maxPeak = peaks.maxBy { it.region.end - it.region.start }
     }
 
 }

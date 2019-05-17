@@ -7,6 +7,7 @@ import org.apache.commons.math3.linear.RealVector
 import org.apache.commons.math3.special.Erf.erf
 import org.apache.commons.math3.util.FastMath.*
 import org.apache.commons.math3.util.Precision
+import util.gaussianDistribution
 
 /**
  * Represents a Gaussian distribution with shape (adds skewness).
@@ -27,8 +28,8 @@ data class SkewGaussianParameters(
 
 typealias SkewSubPeak = SubPeak<SkewGaussianParameters>
 
-val skewFitter = SubPeakFitter(::initSkewParameters, ::optimizeSkew, ::skewParametersToRegion)
-fun fitSkew(values: List<Double>, pileUpStart: Int): Fit<SkewGaussianParameters> = skewFitter.fit(values, pileUpStart)
+fun fitSkew(values: List<Double>, pileUpStart: Int) =
+    fit(values, pileUpStart, ::initSkewParameters, ::optimizeSkew, ::skewParametersToRegion)
 
 fun initSkewParameters(region: Region) = SkewGaussianParameters(
     amplitude = 0.0001,
@@ -103,11 +104,11 @@ fun optimizeSkew(values: DoubleArray,
         .withRankingThreshold(Precision.SAFE_MIN)
 
     val initialParameters = DoubleArray(initialGaussians.size * 4)
-    for (j in 0 until initialGaussians.size) {
-        initialParameters[j*4] = initialGaussians[j].amplitude
-        initialParameters[j*4+1] = initialGaussians[j].mean
-        initialParameters[j*4+2] = initialGaussians[j].stdDev
-        initialParameters[j*4+3] = initialGaussians[j].shape
+    for ((i, gaussian) in initialGaussians.withIndex()) {
+        initialParameters[i*4] = gaussian.amplitude
+        initialParameters[i*4+1] = gaussian.mean
+        initialParameters[i*4+2] = gaussian.stdDev
+        initialParameters[i*4+3] = gaussian.shape
     }
 
     val problem = LeastSquaresBuilder()
@@ -139,16 +140,23 @@ fun validateSkewParameters(params: RealVector, candidateGaussians: List<Candidat
     val validated = params.copy()
     for (j in 0 until candidateGaussians.size) {
         val amplitude = params.getEntry(j*4)
-        if (amplitude < 0) validated.setEntry(j*4, candidateGaussians[j].parameters.amplitude)
         val mean = params.getEntry(j*4+1)
-        if (mean < candidateGaussians[j].region.start || mean > candidateGaussians[j].region.end) {
+        val stdDev = params.getEntry(j*4+2)
+        val shape = params.getEntry(j*4+3)
+
+        if (amplitude < 0) {
+            //TODO decide between these? Does this cause an error with little spikes?
+            //validated.setEntry(j*4, candidateGaussians[j].parameters.amplitude)
+            validated.setEntry(j*4, 0.0)
+        }
+        val meanMin = candidateGaussians[j].region.start
+        val meanMax = candidateGaussians[j].region.end
+        if (mean < meanMin || mean > meanMax) {
             validated.setEntry(j*4+1, candidateGaussians[j].parameters.mean)
         }
-        val stdDev = params.getEntry(j*4+2)
         if (stdDev <= 0 || stdDev > MAX_STD_DEV) {
             validated.setEntry(j*4+2, candidateGaussians[j].parameters.stdDev)
         }
-        val shape = params.getEntry(j*4+3)
         if (abs(shape ) > MAX_SKEW) validated.setEntry(j*4+3, 0.0)
     }
     return validated
