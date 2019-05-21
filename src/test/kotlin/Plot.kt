@@ -50,8 +50,8 @@ class Plot {
             //10_000_000 until 15_000_000 // Small - Single curve
             //41_000_000 until 42_000_000 // Medium
             //44_000_000 until 46_000_000 // Medium
-            46_075_000 until 46_100_000 // Large
-            //46_050_000 until 46_075_000 // Largest
+            //46_075_000 until 46_100_000 // Large
+            46_050_000 until 46_075_000 // Largest
         val pileUp = pileUpSam(TEST_BAM_PATH, Strand.BOTH, false, PileUpAlgorithm.START)
             .getValue(TEST_BAM_CHR)
 
@@ -103,17 +103,6 @@ class Plot {
         }
 
         SwingWrapper(chart).displayChart()
-    }
-
-    @Test
-    fun `Plot Scale-Space`() {
-        val sampleRange = 46_075_000 until 46_100_000
-        val pileUp = pileUpSam(TEST_BAM_PATH, Strand.BOTH, false, PileUpAlgorithm.START)
-            .getValue(TEST_BAM_CHR)
-
-        val pdf = pdf(TEST_BAM_CHR, pileUp, 50.0, false, sampleRange)
-        val peaks = callPeaks(pdf, 6.0)
-        val maxPeak = peaks.maxBy { it.region.end - it.region.start }
     }
 
 }

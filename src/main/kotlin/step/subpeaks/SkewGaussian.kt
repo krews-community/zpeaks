@@ -145,14 +145,14 @@ fun validateSkewParameters(params: RealVector, candidateGaussians: List<Candidat
         val shape = params.getEntry(j*4+3)
 
         if (amplitude < 0) {
-            //TODO decide between these? Does this cause an error with little spikes?
-            //validated.setEntry(j*4, candidateGaussians[j].parameters.amplitude)
             validated.setEntry(j*4, 0.0)
         }
-        val meanMin = candidateGaussians[j].region.start
-        val meanMax = candidateGaussians[j].region.end
-        if (mean < meanMin || mean > meanMax) {
+
+        val skewMode = skewMode(mean, stdDev, shape)
+        if (skewMode < candidateGaussians[j].region.start || skewMode > candidateGaussians[j].region.end) {
             validated.setEntry(j*4+1, candidateGaussians[j].parameters.mean)
+            validated.setEntry(j*4+2, candidateGaussians[j].parameters.stdDev)
+            validated.setEntry(j*4+3, candidateGaussians[j].parameters.shape)
         }
         if (stdDev <= 0 || stdDev > MAX_STD_DEV) {
             validated.setEntry(j*4+2, candidateGaussians[j].parameters.stdDev)
@@ -163,7 +163,7 @@ fun validateSkewParameters(params: RealVector, candidateGaussians: List<Candidat
 }
 
 fun skewParametersToRegion(parameters: SkewGaussianParameters, offset: Int): Region {
-    val mode = skewMode(parameters) + offset
+    val mode = skewMode(parameters.mean, parameters.stdDev, parameters.shape) + offset
     val start = mode - parameters.stdDev
     val stop = mode + parameters.stdDev
     return Region(start.toInt(), stop.toInt())
@@ -177,14 +177,14 @@ const val NEG_2_PI = -2.0 * PI
 /**
  * Calculate the mode for a skewed gaussian
  */
-fun skewMode(gaussian: SkewGaussianParameters): Double {
-    val delta = gaussian.shape / sqrt(1.0 + gaussian.shape * gaussian.shape)
+fun skewMode(mean: Double, stdDev: Double, shape: Double): Double {
+    val delta = shape / sqrt(1.0 + shape * shape)
     val uz = SQRT_2_OVER_PI * delta
     val oz = sqrt(1.0 - uz * uz)
     val skewness = FOUR_MINUS_PI_OVER_2 *
             ((SQRT_2_OVER_PI_CUBED * delta * delta * delta) / pow(1.0 - 2.0 * delta * delta / PI, 1.5))
-    return (uz - skewness * oz / 2.0 - sgn(gaussian.shape) / 2.0 * exp(NEG_2_PI / abs(gaussian.shape))) *
-            gaussian.stdDev + gaussian.mean
+    return (uz - skewness * oz / 2.0 - sgn(shape) / 2.0 * exp(NEG_2_PI / abs(shape))) *
+            stdDev + mean
 }
 
 fun sgn(value: Double) = if (value > 0.0) 1 else if (value < 0.0) -1 else 0
