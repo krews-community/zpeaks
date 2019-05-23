@@ -1,42 +1,36 @@
-import io.writeSkewSubPeaksBed
 import model.*
 import mu.KotlinLogging
 import org.junit.jupiter.api.*
 import step.*
 import step.subpeaks.*
-import util.TEST_BAM_PATH
+import util.*
 import java.nio.file.*
 
 private val log = KotlinLogging.logger {}
 
-@Tag("manual")
+@Disabled
 class PerformanceTest {
 
     @Test
     fun `Run Skew Sub-Peaks on Large Peak`() {
-        val pileUps = pileUpSam(TEST_BAM_PATH, Strand.BOTH, false, PileUpAlgorithm.START)
-        val chr22PileUp = pileUps.getValue("chr22")
+        val pileUp = pileUp()
+        val pdf = pdf(TEST_BAM_CHR, pileUp, 50.0, false)
+        val peaks = callChromPeaks(pdf, 6.0)
 
-        val pdf = pdf("chr22", chr22PileUp, 50.0, false)
-        val peaks = callPeaks(pdf, 6.0)
-
-        val maxPeak = peaks.maxBy { it.region.end - it.region.start }
-        runSkewSubPeaks(pdf, listOf(maxPeak!!), 1)
+        val maxPeak = peaks.maxBy { it.region.end - it.region.start }!!
+        runChromSkewSubPeaks(listOf(maxPeak), pdf)
     }
 
     @Test
     fun `Run Skew Sub-Peaks on All Peaks`() {
-        val pileUps = pileUpSam(TEST_BAM_PATH, Strand.BOTH, false, PileUpAlgorithm.START)
-        val chr22PileUp = pileUps.getValue("chr22")
-
-        val pdf = pdf("chr22", chr22PileUp, 50.0, false)
-        val peaks = callPeaks(pdf, 6.0)
-        val subPeaks = runSkewSubPeaks(pdf, peaks, 6)
-
         val subPeaksFilename = "ENCFF375IJW.chr22.subPeaks.bed"
         val testDir = Files.createTempDirectory("zpeaks_test")
         val subPeaksOut = testDir.resolve(subPeaksFilename)
-        writeSkewSubPeaksBed(subPeaksOut, "chr22", subPeaks)
+
+        run(samIn = TEST_BAM_PATH, signalOut = null, peaksOut = null, subPeaksOut = subPeaksOut,
+            pileUpOptions = PileUpOptions(Strand.BOTH, PileUpAlgorithm.START), smoothing = 50.0,
+            normalizePDF = false, threshold = 6.0)
+
         Files.copy(subPeaksOut, TEST_BAM_PATH.resolveSibling(subPeaksFilename), StandardCopyOption.REPLACE_EXISTING)
     }
 
@@ -44,21 +38,22 @@ class PerformanceTest {
     fun `Run Skew Sub-Peaks many times for one peak and take the average score`() {
         val sampleRange =
             //10_000_000 until 15_000_000 // Small - Single curve
-            41_000_000 until 42_000_000 // Medium 1
+            //41_000_000 until 42_000_000 // Medium 1
             //44_000_000 until 46_000_000 // Medium 2
-            //46_000_000 until 47_000_000 // Largest
+            46_075_000 until 46_100_000 // Large
+            //46_050_000 until 46_075_000 // Largest
 
-        val pileUp = pileUpSam(TEST_BAM_PATH, Strand.BOTH, false, PileUpAlgorithm.START)
-            .getValue(TEST_BAM_CHR)
+        val pileUp = pileUp()
 
         val errors = mutableSetOf<Double>()
         val times = mutableSetOf<Long>()
         repeat(25) {
+            log.info { "Running $it" }
             val pdf = pdf(TEST_BAM_CHR, pileUp, 50.0, false, sampleRange)
-            val peaks = callPeaks(pdf, 6.0)
-            val maxPeak = peaks.maxBy { it.region.end - it.region.start }
+            val peaks = callChromPeaks(pdf, 6.0)
+            val maxPeak = peaks.maxBy { it.region.end - it.region.start }!!
 
-            val peakRegion = maxPeak!!.region
+            val peakRegion = maxPeak.region
             val peakValues = (peakRegion.start..peakRegion.end).map { pdf[it] }
 
             val startTime = System.currentTimeMillis()
@@ -71,3 +66,6 @@ class PerformanceTest {
     }
 
 }
+
+private fun pileUp() = runPileUp(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))
+    .getValue(TEST_BAM_CHR)

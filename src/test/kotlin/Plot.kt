@@ -10,18 +10,19 @@ import step.subpeaks.*
 import java.awt.Color
 import kotlin.math.min
 
-private val log = KotlinLogging.logger {}
 
-@Tag("manual")
+@Disabled
 class Plot {
 
     @AfterEach fun stop() = Thread.sleep(Long.MAX_VALUE)
 
     @Test
     fun `Plot Pile Up, PDF, and Peaks`() {
-        val sampleRange = 20_890_000 until 20_910_000
+        val sampleRange =
+            //20_890_000 until 20_910_000
+            16_774_000 until 16_776_000 // 16_774_965 until 16_774_997
         val displayRange = sampleRange withNSteps 500
-        val pileUp = pileUpSam(TEST_BAM_PATH, Strand.BOTH, false, PileUpAlgorithm.START)
+        val pileUp = runPileUp(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))
             .getValue(TEST_BAM_CHR)
 
         val bpUnits = BPUnits.MBP
@@ -37,7 +38,7 @@ class Plot {
         val pdfChart = xyAreaChart("PDF (in Standard Deviations from Avg)", bpUnits, pdfChartData)
 
         val threshold = 6.0
-        val peaks = callPeaks(pdf, threshold)
+        val peaks = callChromPeaks(pdf, threshold)
         val peaksChartData = regionsData(peaks.map { it.region }, displayRange, bpUnits)
         val peaksChart = xyAreaChart("Peaks Over $threshold", bpUnits, peaksChartData)
 
@@ -47,16 +48,17 @@ class Plot {
     @Test
     fun `Plot Sub-Peaks`() {
         val sampleRange =
-            //10_000_000 until 15_000_000 // Small - Single curve
+            //10_000_000 until 15_000_000 // Small (Single curve)
             //41_000_000 until 42_000_000 // Medium
             //44_000_000 until 46_000_000 // Medium
             //46_075_000 until 46_100_000 // Large
-            46_050_000 until 46_075_000 // Largest
-        val pileUp = pileUpSam(TEST_BAM_PATH, Strand.BOTH, false, PileUpAlgorithm.START)
+            //46_050_000 until 46_075_000 // Largest
+            16_773_000 until 16_776_000 // 16_774_965 until 16_774_997
+        val pileUp = runPileUp(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))
             .getValue(TEST_BAM_CHR)
 
         val pdf = pdf(TEST_BAM_CHR, pileUp, 50.0, false, sampleRange)
-        val peaks = callPeaks(pdf, 6.0)
+        val peaks = callChromPeaks(pdf, 6.0)
         val maxPeak = peaks.maxBy { it.region.end - it.region.start }
 
         val bpUnits = BPUnits.KBP
@@ -106,8 +108,6 @@ class Plot {
     }
 
 }
-
-const val TEST_BAM_CHR = "chr22"
 
 infix fun IntProgression.withNSteps(n: Int): IntProgression {
     val length = this.last - this.first

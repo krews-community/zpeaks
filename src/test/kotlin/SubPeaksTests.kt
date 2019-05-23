@@ -9,10 +9,15 @@ private val log = KotlinLogging.logger {}
 class SubPeaksTests {
 
     @Test
-    fun `test candidate selection`() {
+    fun `test candidate region selection`() {
         val values = sampleGaussian(4.0, 2.0, 25, 50)
-        val candidates = findCandidates(values, ::initSkewParameters)
-        assertThat(candidates.size).isEqualTo(1)
+
+        val candidateRegions = findCandidates(values)
+        assertThat(candidateRegions.size).isEqualTo(1)
+
+        val candidateGaussians = candidateGaussians(values, candidateRegions, ::initSkewParameters)
+        assertThat(candidateGaussians.size).isEqualTo(1)
+        assertThat(candidateGaussians[0].parameters.mean)
     }
 }
 

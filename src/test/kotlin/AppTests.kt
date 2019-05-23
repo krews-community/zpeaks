@@ -1,8 +1,11 @@
+import io.writePeaksBed
+import io.writeSkewSubPeaksBed
 import model.*
 import mu.KotlinLogging
 import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.*
 import step.*
+import step.subpeaks.*
 import util.*
 import java.nio.file.*
 
@@ -12,14 +15,21 @@ class AppTests {
 
     @Test
     fun `Test App Run`() {
-        val pileUps = runPileUp(TEST_BAM_PATH, Strand.BOTH, false, PileUpAlgorithm.START)
-
         val peaksFilename = "ENCFF375IJW.chr22.peaks.bed"
         val subPeaksFilename = "ENCFF375IJW.chr22.subPeaks.bed"
         val testDir = Files.createTempDirectory("zpeaks_test")
         val peaksOut = testDir.resolve(peaksFilename)
         val subPeaksOut = testDir.resolve(subPeaksFilename)
-        runPeaks(pileUps, 50.0, true,6.0, peaksOut, subPeaksOut, (10_000_000..15_000_000))
+
+        val pileUp = runPileUp(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))
+            .getValue(TEST_BAM_CHR)
+
+        val pdf = pdf(TEST_BAM_CHR, pileUp, 50.0, false, (10_000_000..15_000_000))
+        val peaks = callChromPeaks(pdf, 6.0)
+        writePeaksBed(peaksOut, mapOf(TEST_BAM_CHR to peaks))
+        val subPeaks = runChromSkewSubPeaks(peaks, pdf)
+        writeSkewSubPeaksBed(subPeaksOut, mapOf(TEST_BAM_CHR to subPeaks))
+
         Files.copy(peaksOut, TEST_BAM_PATH.resolveSibling(peaksFilename), StandardCopyOption.REPLACE_EXISTING)
         Files.copy(subPeaksOut, TEST_BAM_PATH.resolveSibling(subPeaksFilename), StandardCopyOption.REPLACE_EXISTING)
 

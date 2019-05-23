@@ -12,11 +12,6 @@ interface GaussianParameters {
     var stdDev: Double
 }
 
-data class CandidateGaussian<T : GaussianParameters>(
-    val region: Region,
-    val parameters: T
-)
-
 data class Fit<T : GaussianParameters>(
     val region: Region,
     val subPeaks: List<SubPeak<T>>,
@@ -36,15 +31,16 @@ data class OptimizeResults<T : GaussianParameters>(
     val iterations: Int
 )
 
-typealias Optimizer<T> = (values: DoubleArray, candidateGaussians: List<CandidateGaussian<T>>, gaussians: List<T>) -> OptimizeResults<T>
+typealias Optimizer<T> = (values: DoubleArray, candidateGaussians: List<CandidateGaussian<T>>,
+                          gaussians: List<T>) -> OptimizeResults<T>
 
-fun <T : GaussianParameters> fit(
-    values: List<Double>,
-    offset: Int,
-    initParameters: (region: Region) -> T,
-    optimize: Optimizer<T>,
-    parametersToRegion: (parameters: T, offset: Int) -> Region
-): List<Fit<T>> {
+// Minimum number of values in a peak that are worth evaluating
+const val MIN_PEAK_VALUES = 10
+
+fun <T : GaussianParameters> fit(values: List<Double>, offset: Int, initParameters: (region: Region) -> T,
+        optimize: Optimizer<T>, parametersToRegion: (parameters: T) -> Region): List<Fit<T>> {
+    if (values.size < MIN_PEAK_VALUES) return listOf()
+
     // Subtract out background
     val background = values.min()!!
     val valuesWithoutBackground = values.map { it - background }
@@ -59,11 +55,9 @@ fun <T : GaussianParameters> fit(
         val scaledValues = valuesToFit.map { it / avg }
 
         // Get initial candidates list
-        val candidateGaussians = findCandidates(scaledValues, initParameters)
-
-        log.debug { "Candidate gaussians size: ${candidateGaussians.size}" }
-        log.debug { "Candidate gaussians: $candidateGaussians" }
-        log.debug { "Candidate gaussian regions (sorted): ${candidateGaussians.map { it.region }.sortedBy { it.start }}" }
+        val candidateRegions = findCandidates(scaledValues, splitValues.size > 1)
+        if (candidateRegions.isEmpty()) continue
+        val candidateGaussians = candidateGaussians(scaledValues, candidateRegions, initParameters)
 
         /*
          * Perform the actual fit of the curve to a sum of gaussians.size Gaussians
@@ -72,10 +66,6 @@ fun <T : GaussianParameters> fit(
         val optimized = optimize(scaledValues.toDoubleArray(), candidateGaussians,
             candidateGaussians.map { it.parameters })
 
-        log.debug { "Optimized Result size: ${optimized.parameters.size}" }
-        log.debug { "Optimized Result error: ${optimized.error}" }
-        log.debug { "Optimized Result iterations: ${optimized.iterations}" }
-        log.debug { "Optimized Result: $optimized" }
         val sqrtAvg = sqrt(avg)
         // Bring parameters back to original scale and add background back in. Also add offset to mean
         optimized.parameters.forEach {
@@ -85,7 +75,7 @@ fun <T : GaussianParameters> fit(
 
         val subPeaks = optimized.parameters
             .sortedBy { it.mean }
-            .map { SubPeak(parametersToRegion(it, fitOffset), parametersToScore(it), it) }
+            .map { SubPeak(parametersToRegion(it), parametersToScore(it), it) }
 
         fits += Fit(Region(fitOffset, fitOffset + valuesToFit.size), subPeaks, background, optimized.error)
         fitOffset += valuesToFit.size

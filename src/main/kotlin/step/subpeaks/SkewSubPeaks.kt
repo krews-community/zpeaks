@@ -1,13 +1,20 @@
 package step.subpeaks
 
 import model.Region
+import mu.KotlinLogging
 import org.apache.commons.math3.fitting.leastsquares.LeastSquaresBuilder
+import org.apache.commons.math3.fitting.leastsquares.LeastSquaresOptimizer
 import org.apache.commons.math3.fitting.leastsquares.LevenbergMarquardtOptimizer
 import org.apache.commons.math3.linear.RealVector
 import org.apache.commons.math3.special.Erf.erf
 import org.apache.commons.math3.util.FastMath.*
 import org.apache.commons.math3.util.Precision
-import util.gaussianDistribution
+import step.PDF
+import step.Peak
+import util.runParallel
+import java.util.*
+
+private val log = KotlinLogging.logger {}
 
 /**
  * Represents a Gaussian distribution with shape (adds skewness).
@@ -27,6 +34,30 @@ data class SkewGaussianParameters(
 ) : GaussianParameters
 
 typealias SkewSubPeak = SubPeak<SkewGaussianParameters>
+
+fun runSkewSubPeaks(peaks: Map<String, List<Peak>>, pdfs: Map<String, PDF>): Map<String, List<SkewSubPeak>> {
+    log.info { "Running skew sub-Peaks for ${peaks.size} chromosomes..." }
+    val subPeaks = mutableMapOf<String, List<SkewSubPeak>>()
+    for ((chr, chrPeaks) in peaks) {
+        subPeaks[chr] = runChromSkewSubPeaks(chrPeaks, pdfs.getValue(chr))
+    }
+    log.info { "Skew sub-peaks complete!" }
+    return subPeaks
+}
+
+fun runChromSkewSubPeaks(peaks: List<Peak>, pdf: PDF): List<SkewSubPeak> {
+    (peaks as MutableList).sortByDescending { it.region.end - it.region.start }
+    val subPeaks = Collections.synchronizedList(mutableListOf<SkewSubPeak>())
+    runParallel("Skew Sub-Peaks", peaks) { peak ->
+        val region = peak.region
+        val peakValues = (region.start..region.end).map { pdf[it] }
+        subPeaks += fitSkew(peakValues, region.start).flatMap { fit ->
+            fit.subPeaks
+        }
+    }
+    subPeaks.sortBy { it.region.start }
+    return subPeaks
+}
 
 fun fitSkew(values: List<Double>, pileUpStart: Int) =
     fit(values, pileUpStart, ::initSkewParameters, ::optimizeSkew, ::skewParametersToRegion)
@@ -97,7 +128,7 @@ fun optimizeSkew(values: DoubleArray,
     val avg = values.average()
 
     val optimizer = LevenbergMarquardtOptimizer()
-        .withInitialStepBoundFactor(0.1)
+        .withInitialStepBoundFactor(0.05)
         .withCostRelativeTolerance(avg * 1e-4)
         .withParameterRelativeTolerance(avg * 1e-8)
         .withOrthoTolerance(avg * 1e-3)
@@ -162,8 +193,8 @@ fun validateSkewParameters(params: RealVector, candidateGaussians: List<Candidat
     return validated
 }
 
-fun skewParametersToRegion(parameters: SkewGaussianParameters, offset: Int): Region {
-    val mode = skewMode(parameters.mean, parameters.stdDev, parameters.shape) + offset
+fun skewParametersToRegion(parameters: SkewGaussianParameters): Region {
+    val mode = skewMode(parameters.mean, parameters.stdDev, parameters.shape)
     val start = mode - parameters.stdDev
     val stop = mode + parameters.stdDev
     return Region(start.toInt(), stop.toInt())
