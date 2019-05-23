@@ -23,7 +23,7 @@ fun writePeaksBed(path: Path, peaks: Map<String, Iterable<Peak>>) {
             for (peak in chrPeaks) {
                 val region = peak.region
                 val name = bedPeakName(chr, region)
-                writer.write("$chr\t${region.start}\t${region.end}\t$name\t${peak.score}\n")
+                writer.write("$chr\t${region.start}\t${region.end}\t$name\t${peak.score.printValue}\n")
             }
         }
     }
