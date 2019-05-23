@@ -71,6 +71,7 @@ fun runPileUp(samPath: Path, pileUpOptions: PileUpOptions): MutableMap<String, P
             // Chromosome name / key
             val chr = record.referenceName
 
+            if (!chromosomeLengths.containsKey(chr)) return@forEach
             if (!values.containsKey(chr)) values[chr] = IntArray(chromosomeLengths.getValue(chr)) { 0 }
             sums.putIfAbsent(chr, 0)
 
@@ -124,9 +125,9 @@ fun runPileUp(samPath: Path, pileUpOptions: PileUpOptions): MutableMap<String, P
  */
 private fun pileUpStart(record: SAMRecord, chrLength: Int, forwardShift: Int, reverseShift: Int): Int {
     return if (!record.readNegativeStrandFlag) {
-        (record.start + forwardShift).withinBounds(0, chrLength)
+        (record.start + forwardShift).withinBounds(0, chrLength - 1)
     } else {
-        (record.end + reverseShift).withinBounds(0, chrLength)
+        (record.end + reverseShift).withinBounds(0, chrLength - 1)
     }
 }
 
@@ -137,9 +138,9 @@ private fun pileUpStart(record: SAMRecord, chrLength: Int, forwardShift: Int, re
  */
 private fun pileUpEnd(record: SAMRecord, chrLength: Int, forwardShift: Int, reverseShift: Int): Int {
     return if (!record.readNegativeStrandFlag) {
-        (record.end + reverseShift).withinBounds(0, chrLength)
+        (record.end + reverseShift).withinBounds(0, chrLength - 1)
     } else {
-        (record.start + forwardShift).withinBounds(0, chrLength)
+        (record.start + forwardShift).withinBounds(0, chrLength - 1)
     }
 }
 
