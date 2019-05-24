@@ -26,7 +26,6 @@ fun runSmooth(pileUps: MutableMap<String, PileUp>, smoothing: Double, normalizeP
     val pdfs = mutableMapOf<String, PDF>()
     val pileUpIter = pileUps.iterator()
     for ((chr, pileUp) in pileUpIter) {
-
         log.info { "Calculating PDF for chromosome $chr pileup data..." }
         val pdf = pdf(chr, pileUp, smoothing, normalizePDF)
         log.info { "Chromosome $chr PDF completed with background ${pdf.background}" }
@@ -51,10 +50,11 @@ fun pdf(chr: String, pileUp: PileUp, bandwidth: Double, normalizePDF: Boolean, o
     val windowSize = windowSize(bandwidth)
     val lookupTable = lookupTable(normalizePDF, windowSize, bandwidth, pileUp.sum)
     val pdfValues = AtomicDoubleArray(pileUp.chrLength)
-    logProgress("Creating PDF for $chr", pileUp.chrLength) { tracker ->
-        val start = onRange?.start ?: 0
-        val end = onRange?.endInclusive ?: pileUp.chrLength
+    val start = onRange?.start ?: 0
+    val end = onRange?.endInclusive ?: pileUp.chrLength
+    logProgress("Creating PDF for $chr", end-start) { tracker ->
         IntStream.range(start, end).parallel().forEach { chrIndex ->
+            tracker.incrementAndGet()
             val pileUpValue = pileUp[chrIndex]
             if (pileUpValue == 0) return@forEach
             pdfValues.addAndGet(chrIndex, pileUpValue * lookupTable[0])
@@ -66,7 +66,6 @@ fun pdf(chr: String, pileUp: PileUp, bandwidth: Double, normalizePDF: Boolean, o
                     pdfValues.addAndGet(chrIndex - i, pileUpValue * lookupTable[i])
                 }
             }
-            tracker.incrementAndGet()
         }
     }
 

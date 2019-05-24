@@ -13,11 +13,13 @@ const val SQRT2PI = 2.506628275
 fun logProgress(name: String, total: Int, run: (tracker: AtomicInteger) -> Unit) {
     val progressTracker = AtomicInteger(0)
     val logExecutor = Executors.newSingleThreadScheduledExecutor()
-    val logJob = logExecutor.scheduleAtFixedRate({
-        val complete = progressTracker.get()
-        val percentage = "%.2f".format(complete.toDouble() / total * 100)
-        log.info { "$name - $percentage% complete." }
-    }, 5, 5, TimeUnit.SECONDS)
+    val logJob = if (total > 0) {
+        logExecutor.scheduleAtFixedRate({
+            val complete = progressTracker.get()
+            val percentage = "%.2f".format(complete.toDouble() / total * 100)
+            log.info { "$name - $percentage% complete." }
+        }, 5, 5, TimeUnit.SECONDS)
+    } else null
     run(progressTracker)
     logJob?.cancel(false)
     logExecutor.shutdown()

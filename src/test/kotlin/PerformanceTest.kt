@@ -24,7 +24,7 @@ class PerformanceTest {
     @Test
     fun `Run Skew Sub-Peaks on All Peaks`() {
         val testSamIn = TEST_BAM_PATH
-        val subPeaksFilename = testSamIn.filenameWithoutExtension()
+        val subPeaksFilename = "${testSamIn.filenameWithoutExtension()}.subPeaks.bed"
         val testDir = Files.createTempDirectory("zpeaks_test")
         val subPeaksOut = testDir.resolve(subPeaksFilename)
 
