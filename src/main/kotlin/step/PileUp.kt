@@ -51,9 +51,15 @@ data class PileUpOptions(
  * @return the in-memory pile-up
  */
 fun runPileUp(samPath: Path, pileUpOptions: PileUpOptions): MutableMap<String, PileUp> {
-    log.info { "Performing pile-up for sam file $samPath with strand=${pileUpOptions.strand}, " +
-            "pileUpAlgorithm=${pileUpOptions.pileUpAlgorithm}, " +
-            "forwardShift=${pileUpOptions.forwardShift}, reverseShift=${pileUpOptions.reverseShift}" }
+    log.info {
+        """
+        Performing pile-up for sam file $samPath with options:
+        strand=${pileUpOptions.strand}
+        pileUpAlgorithm=${pileUpOptions.pileUpAlgorithm}
+        forwardShift=${pileUpOptions.forwardShift}
+        reverseShift=${pileUpOptions.reverseShift}
+        """.trimIndent()
+    }
     val samReader = SamReaderFactory.make().open(samPath)
     val chromosomeLengths: Map<String, Int> = samReader.fileHeader.sequenceDictionary.sequences
         .map { it.sequenceName to it.sequenceLength }.toMap()

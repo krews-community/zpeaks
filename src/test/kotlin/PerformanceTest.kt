@@ -18,16 +18,17 @@ class PerformanceTest {
         val peaks = callChromPeaks(pdf, 6.0)
 
         val maxPeak = peaks.maxBy { it.region.end - it.region.start }!!
-        runChromSkewSubPeaks(listOf(maxPeak), pdf)
+        runChromSkewSubPeaks(TEST_BAM_CHR, listOf(maxPeak), pdf)
     }
 
     @Test
     fun `Run Skew Sub-Peaks on All Peaks`() {
-        val subPeaksFilename = "ENCFF375IJW.chr22.subPeaks.bed"
+        val testSamIn = TEST_BAM_PATH
+        val subPeaksFilename = testSamIn.filenameWithoutExtension()
         val testDir = Files.createTempDirectory("zpeaks_test")
         val subPeaksOut = testDir.resolve(subPeaksFilename)
 
-        run(samIn = TEST_BAM_PATH, signalOut = null, peaksOut = null, subPeaksOut = subPeaksOut,
+        run(samIn = testSamIn, signalOut = null, peaksOut = null, subPeaksOut = subPeaksOut,
             pileUpOptions = PileUpOptions(Strand.BOTH, PileUpAlgorithm.START), smoothing = 50.0,
             normalizePDF = false, threshold = 6.0)
 

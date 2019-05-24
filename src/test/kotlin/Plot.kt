@@ -49,11 +49,11 @@ class Plot {
     fun `Plot Sub-Peaks`() {
         val sampleRange =
             //10_000_000 until 15_000_000 // Small (Single curve)
+            //16_773_000 until 16_776_000 // Small (Two curves, one small)
             //41_000_000 until 42_000_000 // Medium
             //44_000_000 until 46_000_000 // Medium
-            //46_075_000 until 46_100_000 // Large
+            46_075_000 until 46_100_000 // Large
             //46_050_000 until 46_075_000 // Largest
-            16_773_000 until 16_776_000 // 16_774_965 until 16_774_997
         val pileUp = runPileUp(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))
             .getValue(TEST_BAM_CHR)
 

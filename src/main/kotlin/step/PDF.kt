@@ -24,20 +24,21 @@ class PDF(
 fun runSmooth(pileUps: MutableMap<String, PileUp>, smoothing: Double, normalizePDF: Boolean): Map<String, PDF> {
     log.info { "Performing smoothing of raw pile up data for ${pileUps.size} chromosomes..." }
     val pdfs = mutableMapOf<String, PDF>()
-    for ((chr, pileUp) in pileUps) {
+    val pileUpIter = pileUps.iterator()
+    for ((chr, pileUp) in pileUpIter) {
 
         log.info { "Calculating PDF for chromosome $chr pileup data..." }
         val pdf = pdf(chr, pileUp, smoothing, normalizePDF)
         log.info { "Chromosome $chr PDF completed with background ${pdf.background}" }
+
+        // Remove pile-up data so it can be garbage collected and memory can be reclaimed.
+        pileUpIter.remove()
 
         if (0.0 == pdf.background.average || 0.0 == pdf.background.stdDev) {
             log.warn { "One or more background parameters for chromosome $chr was zero. skipping..." }
             continue
         }
         pdfs[chr] = pdf
-
-        // Remove pile-up data so it can be garbage collected and memory can be reclaimed.
-        pileUps.remove(chr)
     }
     log.info { "Smoothing complete!" }
     return pdfs

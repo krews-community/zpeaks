@@ -39,16 +39,16 @@ fun runSkewSubPeaks(peaks: Map<String, List<Peak>>, pdfs: Map<String, PDF>): Map
     log.info { "Running skew sub-Peaks for ${peaks.size} chromosomes..." }
     val subPeaks = mutableMapOf<String, List<SkewSubPeak>>()
     for ((chr, chrPeaks) in peaks) {
-        subPeaks[chr] = runChromSkewSubPeaks(chrPeaks, pdfs.getValue(chr))
+        subPeaks[chr] = runChromSkewSubPeaks(chr, chrPeaks, pdfs.getValue(chr))
     }
     log.info { "Skew sub-peaks complete!" }
     return subPeaks
 }
 
-fun runChromSkewSubPeaks(peaks: List<Peak>, pdf: PDF): List<SkewSubPeak> {
+fun runChromSkewSubPeaks(chr: String, peaks: List<Peak>, pdf: PDF): List<SkewSubPeak> {
     (peaks as MutableList).sortByDescending { it.region.end - it.region.start }
     val subPeaks = Collections.synchronizedList(mutableListOf<SkewSubPeak>())
-    runParallel("Skew Sub-Peaks", peaks) { peak ->
+    runParallel("Skew Sub-Peaks on $chr", peaks) { peak ->
         val region = peak.region
         val peakValues = (region.start..region.end).map { pdf[it] }
         subPeaks += fitSkew(peakValues, region.start).flatMap { fit ->
@@ -176,7 +176,7 @@ fun validateSkewParameters(params: RealVector, candidateGaussians: List<Candidat
         val shape = params.getEntry(j*4+3)
 
         if (amplitude < 0) {
-            validated.setEntry(j*4, 0.0)
+            validated.setEntry(j*4, candidateGaussians[j].parameters.amplitude)
         }
 
         val skewMode = skewMode(mean, stdDev, shape)
