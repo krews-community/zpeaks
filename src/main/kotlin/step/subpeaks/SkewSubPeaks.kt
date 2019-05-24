@@ -175,7 +175,7 @@ fun validateSkewParameters(params: RealVector, candidateGaussians: List<Candidat
         val stdDev = params.getEntry(j*4+2)
         val shape = params.getEntry(j*4+3)
 
-        if (amplitude < 0) {
+        if (amplitude <= 0) {
             validated.setEntry(j*4, candidateGaussians[j].parameters.amplitude)
         }
 

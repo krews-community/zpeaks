@@ -40,7 +40,9 @@ fun writeSkewSubPeaksBed(path: Path, subPeaks: Map<String, Iterable<SkewSubPeak>
             for (subPeak in chrSubPeaks) {
                 val region = subPeak.region
                 val name = bedPeakName(chr, region)
-                val score = "${subPeak.gaussianParameters.amplitude.printValue}#${subPeak.gaussianParameters.shape.printValue}"
+                val amplitude = subPeak.gaussianParameters.amplitude
+                val shape = subPeak.gaussianParameters.shape
+                val score = "${amplitude.printValue}#${shape.printValue}"
                 writer.write("$chr\t${region.start}\t${region.end}\t$name\t$score\n")
             }
         }

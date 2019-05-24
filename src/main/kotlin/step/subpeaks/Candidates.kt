@@ -102,10 +102,9 @@ fun <T : GaussianParameters> candidateGaussians(values: List<Double>, candidateR
     val r = LUDecomposition(createRealMatrix(m)).solver.solve(createRealVector(d))
 
     for (j in 0 until candidateGaussians.size) {
-        val s = if (r.getEntry(j) < 0) -1.0 else 1.0
         // Set Amplitude
         candidateGaussians[j].parameters.amplitude =
-            sqrt(abs(r.getEntry(j)) * candidateGaussians[j].parameters.stdDev) * s
+            sqrt(abs(r.getEntry(j)) * candidateGaussians[j].parameters.stdDev)
     }
 
     return candidateGaussians
