@@ -85,22 +85,22 @@ private fun windowSize(bandwidth: Double): Int {
  */
 private fun background(lookupTable: List<Double>, numBins: Int, windowSize: Int, chrLength: Int): Background {
 
-    val averageN = numBins * windowSize / chrLength
+    val averageN = numBins.toFloat() * windowSize.toFloat() / chrLength.toFloat()
     val backgroundDist = mutableListOf<Double>()
 
-    if (0 != averageN) {
+    if (averageN > 1.0) {
+        val averageNint = averageN.toInt()
         for (i in 0 until BACKGROUND_LIMIT) {
             var bgVal = 0.0
-            for (j in 0 until averageN) {
+            for (j in 0 until averageNint) {
                 val x = Random.nextInt(0, windowSize / 2)
                 bgVal += lookupTable[x]
             }
             backgroundDist += bgVal
         }
     } else {
-        val averageP = numBins * windowSize / chrLength.toFloat()
         for (i in 0 until BACKGROUND_LIMIT) {
-            if (Random.nextDouble() > averageP) continue
+            if (Random.nextDouble() > averageN) continue
             val x = Random.nextInt(0, windowSize / 2)
             backgroundDist += lookupTable[x]
         }
