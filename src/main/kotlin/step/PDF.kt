@@ -84,15 +84,26 @@ private fun windowSize(bandwidth: Double): Int {
  * distribution of PDFs should be near normal.
  */
 private fun background(lookupTable: List<Double>, numBins: Int, windowSize: Int, chrLength: Int): Background {
+
     val averageN = numBins * windowSize / chrLength
     val backgroundDist = mutableListOf<Double>()
-    for (i in 0 until BACKGROUND_LIMIT) {
-        var bgVal = 0.0
-        for (j in 0 until averageN) {
-            val x = Random.nextInt(0, windowSize / 2)
-            bgVal += lookupTable[x]
+
+    if (0 != averageN) {
+        for (i in 0 until BACKGROUND_LIMIT) {
+            var bgVal = 0.0
+            for (j in 0 until averageN) {
+                val x = Random.nextInt(0, windowSize / 2)
+                bgVal += lookupTable[x]
+            }
+            backgroundDist += bgVal
         }
-        backgroundDist += bgVal
+    } else {
+        val averageP = numBins * windowSize / chrLength.toFloat()
+        for (i in 0 until BACKGROUND_LIMIT) {
+            if (Random.nextDouble() > averageP) continue
+            val x = Random.nextInt(0, windowSize / 2)
+            backgroundDist += lookupTable[x]
+        }
     }
 
     // Compute step.background average and standard deviation from the distribution.
