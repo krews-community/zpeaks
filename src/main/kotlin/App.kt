@@ -23,6 +23,8 @@ class ZPeaks : CliktCommand() {
     private val strand: Strand by option("-strand", help="Strand to count during pile-up")
         .choice(Strand.values().associateBy { it.lowerHyphenName })
         .default(Strand.BOTH)
+    private val signalResolution: Int by option("-signalResolution", help="Number of decimal places to keep in bigWig signal values")
+        .int().default(1)
     private val forwardShift by option("-forwardShift", help="During pile-up, shift the " +
             "forward strand by this amount. Can be positive or negative. Default 0.")
         .int().default(0)
@@ -50,7 +52,7 @@ class ZPeaks : CliktCommand() {
             if (signalOutPath != null) SignalOutput(signalOutPath!!, signalOutType, signalOutFormat)
             else null
         val pileUpOptions = PileUpOptions(strand, pileUpAlgorithm, forwardShift, reverseShift)
-        run(samIn, signalOut, peaksOut, subPeaksOut, pileUpOptions, smoothing, normalizePDF, threshold, parallelism)
+        run(samIn, signalOut, peaksOut, subPeaksOut, pileUpOptions, smoothing, normalizePDF, threshold, signalResolution, parallelism)
     }
 }
 
@@ -58,7 +60,7 @@ data class SignalOutput(val path: Path, val type: SignalOutputType, val format: 
 enum class SignalOutputType { RAW, SMOOTHED }
 
 fun run(samIn: Path, signalOut: SignalOutput?, peaksOut: Path?, subPeaksOut: Path?, pileUpOptions: PileUpOptions,
-        smoothing: Double, normalizePDF: Boolean, threshold: Double, parallelism: Int? = null) {
+        smoothing: Double, normalizePDF: Boolean, threshold: Double, signalResolution: Int = 1, parallelism: Int? = null) {
     if (parallelism != null) {
         System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", parallelism.toString())
     }
@@ -70,7 +72,7 @@ fun run(samIn: Path, signalOut: SignalOutput?, peaksOut: Path?, subPeaksOut: Pat
 
     val pdfs = runSmooth(pileUps, smoothing, normalizePDF)
     if (signalOut != null && signalOut.type == SignalOutputType.SMOOTHED) {
-        createSignalFile(signalOut.path, signalOut.format, pdfs)
+        createSignalFile(signalOut.path, signalOut.format, pdfs, signalResolution)
     }
 
     val peaks = callPeaks(pdfs, threshold)
