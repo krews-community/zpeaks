@@ -34,7 +34,7 @@ fun writeWig(path: Path, data: Map<String, SignalData>, signalResolution: Int = 
                 writer.write("variableStep chrom=${section.chr} span=${section.span}\n")
                 lastSpan = section.span
             }
-            writer.write("${section.start} ${section.value}\n")
+            writer.write("${section.start + 1} ${section.value}\n")
         }
     }
     log.info { "Wig file write complete!" }
