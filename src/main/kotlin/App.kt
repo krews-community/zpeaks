@@ -40,6 +40,9 @@ class ZPeaks : CliktCommand() {
         help="If true, PDF values are scaled to the natural gaussian amplitude").flag()
     private val threshold: Double by option("-threshold", help="Threshold used during peak calling").double()
         .default(6.0)
+    private val fitMode: FitMode by option("-fitMode", help="Sub-Peak Fitting Modes.")
+        .choice(FitMode.values().associateBy { it.lowerHyphenName })
+        .default(FitMode.SKEW)
     private val parallelism: Int? by option("-parallelism", help="Number of threads to use for parallel parts. " +
             "Defaults to number of cores on machine. Parallelism is NOT per-chromosome. Any amount is valid.").int()
 
@@ -50,15 +53,18 @@ class ZPeaks : CliktCommand() {
             if (signalOutPath != null) SignalOutput(signalOutPath!!, signalOutType, signalOutFormat)
             else null
         val pileUpOptions = PileUpOptions(strand, pileUpAlgorithm, forwardShift, reverseShift)
-        run(samIn, signalOut, peaksOut, subPeaksOut, pileUpOptions, smoothing, normalizePDF, threshold, parallelism)
+        run(samIn, signalOut, peaksOut, subPeaksOut, pileUpOptions, smoothing, normalizePDF,
+            threshold, fitMode, parallelism)
     }
 }
 
+enum class FitMode { SKEW, STANDARD }
 data class SignalOutput(val path: Path, val type: SignalOutputType, val format: SignalOutputFormat)
 enum class SignalOutputType { RAW, SMOOTHED }
 
 fun run(samIn: Path, signalOut: SignalOutput?, peaksOut: Path?, subPeaksOut: Path?, pileUpOptions: PileUpOptions,
-        smoothing: Double, normalizePDF: Boolean, threshold: Double, parallelism: Int? = null) {
+        smoothing: Double, normalizePDF: Boolean, threshold: Double, fitMode: FitMode = FitMode.SKEW,
+        parallelism: Int? = null) {
     if (parallelism != null) {
         System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", parallelism.toString())
     }
@@ -79,8 +85,13 @@ fun run(samIn: Path, signalOut: SignalOutput?, peaksOut: Path?, subPeaksOut: Pat
     }
 
     if (subPeaksOut == null) return
-    val skewSubPeaks = runSkewSubPeaks(peaks, pdfs)
-    writeSkewSubPeaksBed(subPeaksOut, skewSubPeaks)
+    if (fitMode == FitMode.SKEW) {
+        val skewSubPeaks = SkewFitter.fitAll(peaks, pdfs)
+        writeSkewSubPeaksBed(subPeaksOut, skewSubPeaks)
+    } else {
+        val subPeaks = StandardFitter.fitAll(peaks, pdfs)
+        writeStandardSubPeaksBed(subPeaksOut, subPeaks)
+    }
 }
 
 fun main(args: Array<String>) = ZPeaks().main(args)

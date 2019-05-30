@@ -3,6 +3,10 @@ package step.subpeaks
 import model.*
 import mu.KotlinLogging
 import org.apache.commons.math3.util.FastMath.*
+import step.PDF
+import step.Peak
+import util.runParallel
+import java.util.*
 
 private val log = KotlinLogging.logger {}
 
@@ -25,62 +29,91 @@ data class SubPeak<T : GaussianParameters>(
     val gaussianParameters: T
 )
 
-data class OptimizeResults<T : GaussianParameters>(
-    val parameters: List<T>,
-    val error: Double,
-    val iterations: Int
-)
-
-typealias Optimizer<T> = (values: DoubleArray, candidateGaussians: List<CandidateGaussian<T>>,
-                          gaussians: List<T>) -> OptimizeResults<T>
-
 // Minimum number of values in a peak that are worth evaluating
 const val MIN_PEAK_VALUES = 10
 
-fun <T : GaussianParameters> fit(values: List<Double>, offset: Int, initParameters: (region: Region) -> T,
-        optimize: Optimizer<T>, parametersToRegion: (parameters: T) -> Region): List<Fit<T>> {
-    if (values.size < MIN_PEAK_VALUES) return listOf()
+abstract class Fitter<T : GaussianParameters> (private val name: String, val optimizer: Optimizer<T>) {
 
-    // Subtract out background
-    val background = values.min()!!
-    val valuesWithoutBackground = values.map { it - background }
-
-    val splitValues = splitForFit(valuesWithoutBackground)
-
-    val fits = mutableListOf<Fit<T>>()
-    var fitOffset = offset
-    for (valuesToFit in splitValues) {
-        // Put all on same scale
-        val avg = valuesToFit.average()
-        val scaledValues = valuesToFit.map { it / avg }
-
-        // Get initial candidates list
-        val candidateRegions = findCandidates(scaledValues, splitValues.size > 1)
-        if (candidateRegions.isEmpty()) continue
-        val candidateGaussians = candidateGaussians(scaledValues, candidateRegions, initParameters)
-
-        /*
-         * Perform the actual fit of the curve to a sum of gaussians.size Gaussians
-         * optimization is performed with the Levenberg-Marquardt algorithm
-         */
-        val optimized = optimize(scaledValues.toDoubleArray(), candidateGaussians,
-            candidateGaussians.map { it.parameters })
-
-        val sqrtAvg = sqrt(avg)
-        // Bring parameters back to original scale and add background back in. Also add offset to mean
-        optimized.parameters.forEach {
-            it.amplitude *= sqrtAvg
-            it.mean += fitOffset
+    /**
+     * Do all sub-peak fits for all peaks on all chromosomes
+     */
+    fun fitAll(peaks: Map<String, List<Peak>>, pdfs: Map<String, PDF>): Map<String, List<SubPeak<T>>> {
+        log.info { "Running $name for ${peaks.size} chromosomes..." }
+        val subPeaks = mutableMapOf<String, List<SubPeak<T>>>()
+        for ((chr, chrPeaks) in peaks) {
+            subPeaks[chr] = fitChrom(chr, chrPeaks, pdfs.getValue(chr))
         }
-
-        val subPeaks = optimized.parameters
-            .sortedBy { it.mean }
-            .map { SubPeak(parametersToRegion(it), parametersToScore(it), it) }
-
-        fits += Fit(Region(fitOffset, fitOffset + valuesToFit.size), subPeaks, background, optimized.error)
-        fitOffset += valuesToFit.size
+        log.info { "$name complete!" }
+        return subPeaks
     }
-    return fits
+
+    /**
+     * Do sub-peak fits for all peaks on a single chromosome
+     */
+    fun fitChrom(chr: String, peaks: List<Peak>, pdf: PDF): List<SubPeak<T>> {
+        (peaks as MutableList).sortByDescending { it.region.end - it.region.start }
+        val subPeaks = Collections.synchronizedList(mutableListOf<SubPeak<T>>())
+        runParallel("$name on $chr", peaks) { peak ->
+            val region = peak.region
+            val peakValues = (region.start..region.end).map { pdf[it] }
+            subPeaks += fitPeak(peakValues, region.start).flatMap { fit ->
+                fit.subPeaks
+            }
+        }
+        subPeaks.sortBy { it.region.start }
+        return subPeaks
+    }
+
+    /**
+     * Do sub-peak fits for a single peak
+     */
+    fun fitPeak(values: List<Double>, offset: Int): List<Fit<T>> {
+        if (values.size < MIN_PEAK_VALUES) return listOf()
+
+        // Subtract out background
+        val background = values.min()!!
+        val valuesWithoutBackground = values.map { it - background }
+
+        val splitValues = splitForFit(valuesWithoutBackground)
+
+        val fits = mutableListOf<Fit<T>>()
+        var fitOffset = offset
+        for (valuesToFit in splitValues) {
+            // Put all on same scale
+            val avg = valuesToFit.average()
+            val scaledValues = valuesToFit.map { it / avg }
+
+            // Get initial candidates list
+            val candidateRegions = findCandidates(scaledValues, splitValues.size > 1)
+            if (candidateRegions.isEmpty()) continue
+            val candidateGaussians = candidateGaussians(scaledValues, candidateRegions, ::initParameters)
+
+            /*
+             * Perform the actual fit of the curve to a sum of gaussians.size Gaussians
+             * optimization is performed with the Levenberg-Marquardt algorithm
+             */
+            val optimized = optimizer.optimize(scaledValues.toDoubleArray(), candidateGaussians,
+                candidateGaussians.map { it.parameters })
+
+            val sqrtAvg = sqrt(avg)
+            // Bring parameters back to original scale and add background back in. Also add offset to mean
+            optimized.parameters.forEach {
+                it.amplitude *= sqrtAvg
+                it.mean += fitOffset
+            }
+
+            val subPeaks = optimized.parameters
+                .sortedBy { it.mean }
+                .map { SubPeak(parametersToRegion(it), parametersToScore(it), it) }
+
+            fits += Fit(Region(fitOffset, fitOffset + valuesToFit.size), subPeaks, background, optimized.error)
+            fitOffset += valuesToFit.size
+        }
+        return fits
+    }
+
+    abstract fun initParameters(region: Region): T
+    abstract fun parametersToRegion(parameters: T): Region
 }
 
 private fun parametersToScore(parameters: GaussianParameters) =

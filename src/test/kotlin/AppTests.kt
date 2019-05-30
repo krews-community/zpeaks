@@ -27,7 +27,7 @@ class AppTests {
         val pdf = pdf(TEST_BAM_CHR, pileUp, 50.0, false, (10_000_000..15_000_000))
         val peaks = callChromPeaks(pdf, 6.0)
         writePeaksBed(peaksOut, mapOf(TEST_BAM_CHR to peaks))
-        val subPeaks = runChromSkewSubPeaks(TEST_BAM_CHR, peaks, pdf)
+        val subPeaks = SkewFitter.fitChrom(TEST_BAM_CHR, peaks, pdf)
         writeSkewSubPeaksBed(subPeaksOut, mapOf(TEST_BAM_CHR to subPeaks))
 
         Files.copy(peaksOut, TEST_BAM_PATH.resolveSibling(peaksFilename), StandardCopyOption.REPLACE_EXISTING)

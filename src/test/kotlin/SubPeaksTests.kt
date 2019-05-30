@@ -15,7 +15,7 @@ class SubPeaksTests {
         val candidateRegions = findCandidates(values)
         assertThat(candidateRegions.size).isEqualTo(1)
 
-        val candidateGaussians = candidateGaussians(values, candidateRegions, ::initSkewParameters)
+        val candidateGaussians = candidateGaussians(values, candidateRegions, SkewFitter::initParameters)
         assertThat(candidateGaussians.size).isEqualTo(1)
         assertThat(candidateGaussians[0].parameters.mean)
     }

@@ -2,7 +2,6 @@ package io
 
 import model.Region
 import mu.KotlinLogging
-import org.jetbrains.bio.big.BigBedFile
 import step.Peak
 import step.subpeaks.*
 import java.nio.ByteBuffer
@@ -33,7 +32,7 @@ fun writePeaksBed(path: Path, peaks: Map<String, Iterable<Peak>>) {
 /**
  * Writes part of bed file for given chromosome and sub-peaks
  */
-fun writeSkewSubPeaksBed(path: Path, subPeaks: Map<String, Iterable<SkewSubPeak>>) {
+fun writeSkewSubPeaksBed(path: Path, subPeaks: Map<String, Iterable<SubPeak<SkewGaussianParameters>>>) {
     log.info { "Writing skew sub-peaks data to bed file $path" }
     Files.newBufferedWriter(path).use { writer ->
         for ((chr, chrSubPeaks) in subPeaks) {
@@ -48,6 +47,22 @@ fun writeSkewSubPeaksBed(path: Path, subPeaks: Map<String, Iterable<SkewSubPeak>
         }
     }
     log.info { "Skew sub-peaks data write complete!" }
+}
+
+fun writeStandardSubPeaksBed(path: Path, subPeaks: Map<String, Iterable<SubPeak<StandardGaussianParameters>>>) {
+    log.info { "Writing Standard Sub-Peaks data to bed file $path" }
+    Files.newBufferedWriter(path).use { writer ->
+        for ((chr, chrSubPeaks) in subPeaks) {
+            for (subPeak in chrSubPeaks) {
+                val region = subPeak.region
+                val name = bedPeakName(chr, region)
+                val amplitude = subPeak.gaussianParameters.amplitude
+                val score = amplitude.printValue
+                writer.write("$chr\t${region.start}\t${region.end}\t$name\t$score\n")
+            }
+        }
+    }
+    log.info { "Standard Sub-Peaks data write complete!" }
 }
 
 /**
