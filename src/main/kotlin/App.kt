@@ -23,6 +23,9 @@ class ZPeaks : CliktCommand() {
     private val strand: Strand by option("-strand", help="Strand to count during pile-up")
         .choice(Strand.values().associateBy { it.lowerHyphenName })
         .default(Strand.BOTH)
+    private val signalResolution: Int by option("-signalResolution",
+        help="Number of decimal places to keep in bigWig signal values")
+        .int().default(1)
     private val forwardShift by option("-forwardShift", help="During pile-up, shift the " +
             "forward strand by this amount. Can be positive or negative. Default 0.")
         .int().default(0)
@@ -54,7 +57,7 @@ class ZPeaks : CliktCommand() {
             else null
         val pileUpOptions = PileUpOptions(strand, pileUpAlgorithm, forwardShift, reverseShift)
         run(samIn, signalOut, peaksOut, subPeaksOut, pileUpOptions, smoothing, normalizePDF,
-            threshold, fitMode, parallelism)
+            threshold, fitMode, signalResolution, parallelism)
     }
 }
 
@@ -64,7 +67,7 @@ enum class SignalOutputType { RAW, SMOOTHED }
 
 fun run(samIn: Path, signalOut: SignalOutput?, peaksOut: Path?, subPeaksOut: Path?, pileUpOptions: PileUpOptions,
         smoothing: Double, normalizePDF: Boolean, threshold: Double, fitMode: FitMode = FitMode.SKEW,
-        parallelism: Int? = null) {
+        signalResolution: Int = 1, parallelism: Int? = null) {
     if (parallelism != null) {
         System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", parallelism.toString())
     }
@@ -76,7 +79,7 @@ fun run(samIn: Path, signalOut: SignalOutput?, peaksOut: Path?, subPeaksOut: Pat
 
     val pdfs = runSmooth(pileUps, smoothing, normalizePDF)
     if (signalOut != null && signalOut.type == SignalOutputType.SMOOTHED) {
-        createSignalFile(signalOut.path, signalOut.format, pdfs)
+        createSignalFile(signalOut.path, signalOut.format, pdfs, signalResolution)
     }
 
     val peaks = callPeaks(pdfs, threshold)

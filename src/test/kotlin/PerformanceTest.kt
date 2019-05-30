@@ -35,8 +35,8 @@ class PerformanceTest {
             pileUpOptions = PileUpOptions(Strand.BOTH, PileUpAlgorithm.START),
             smoothing = 50.0,
             normalizePDF = false,
-            fitMode = FitMode.STANDARD,
-            threshold = 6.0)
+            threshold = 6.0,
+            fitMode = FitMode.SKEW)
 
         Files.copy(subPeaksOut, TEST_BAM_PATH.resolveSibling(subPeaksFilename), StandardCopyOption.REPLACE_EXISTING)
     }
