@@ -18,3 +18,9 @@ fun Path.filenameWithoutExtension(): String {
     val filename = this.fileName.toString()
     return filename.substring(0, filename.lastIndexOf('.'))
 }
+
+fun Path.copyToAndDelete(to: Path): Path {
+    Files.copy(this, to, StandardCopyOption.REPLACE_EXISTING)
+    Files.deleteIfExists(this)
+    return to
+}

@@ -9,11 +9,11 @@ import java.nio.file.*
 class IOTests {
 
     private fun testPileUpFormat(fileName: String, format: SignalOutputFormat, checkContents: Boolean = true) {
-        val outputPath = Files.createTempDirectory("zpeaks_test").resolve(fileName)
+        var outputPath = Files.createTempDirectory("zpeaks_test").resolve(fileName)
         val pileUp =  runPileUp(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.LENGTH))
         createSignalFile(outputPath, format, pileUp)
 
-        Files.copy(outputPath, TEST_BAM_PATH.resolveSibling(fileName), StandardCopyOption.REPLACE_EXISTING)
+        outputPath = outputPath.copyToAndDelete(TEST_BAM_PATH.resolveSibling(fileName))
         if (checkContents) assertThat(outputPath).hasSameContentAs(getResourcePath(fileName))
     }
 

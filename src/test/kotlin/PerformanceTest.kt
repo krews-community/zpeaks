@@ -24,7 +24,8 @@ class PerformanceTest {
 
     @Test
     fun `Run Skew Sub-Peaks on All Peaks`() {
-        val testSamIn = TEST_BAM_PATH
+        val testSamIn = TEST_BAM_2_PATH
+            //TEST_BAM_PATH
         val signalFilename = "${testSamIn.filenameWithoutExtension()}.signal.bedGraph"
         val subPeaksFilename = "${testSamIn.filenameWithoutExtension()}.subPeaks.bed"
         val testDir = Files.createTempDirectory("zpeaks_test")
@@ -41,8 +42,8 @@ class PerformanceTest {
             threshold = 6.0,
             fitMode = FitMode.SKEW)
 
-        Files.copy(signalOut, testSamIn.resolveSibling(signalFilename), StandardCopyOption.REPLACE_EXISTING)
-        Files.copy(subPeaksOut, testSamIn.resolveSibling(subPeaksFilename), StandardCopyOption.REPLACE_EXISTING)
+        signalOut.copyToAndDelete(testSamIn.resolveSibling(signalFilename))
+        subPeaksOut.copyToAndDelete(testSamIn.resolveSibling(subPeaksFilename))
     }
 
     @Test
@@ -60,7 +61,7 @@ class PerformanceTest {
 private fun pileUp() = runPileUp(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))
     .getValue(TEST_BAM_CHR)
 
-private fun <T: GaussianParameters> runManyAndAverage(sampleRange: IntRange, fitter: Fitter<T>) {
+private fun runManyAndAverage(sampleRange: IntRange, fitter: Fitter<*>) {
     val pileUp = pileUp()
 
     val errors = mutableSetOf<Double>()
@@ -75,7 +76,7 @@ private fun <T: GaussianParameters> runManyAndAverage(sampleRange: IntRange, fit
         val peakValues = (peakRegion.start..peakRegion.end).map { pdf[it] }
 
         val startTime = System.currentTimeMillis()
-        val fits = SkewFitter.fitPeak(peakValues, peakRegion.start)
+        val fits = fitter.fitPeak(peakValues, peakRegion.start)
         errors += fits.map { it.error }.average()
         times += System.currentTimeMillis() - startTime
     }

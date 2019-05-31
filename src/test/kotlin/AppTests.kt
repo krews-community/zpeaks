@@ -18,8 +18,8 @@ class AppTests {
         val peaksFilename = "ENCFF375IJW.chr22.peaks.bed"
         val subPeaksFilename = "ENCFF375IJW.chr22.subPeaks.bed"
         val testDir = Files.createTempDirectory("zpeaks_test")
-        val peaksOut = testDir.resolve(peaksFilename)
-        val subPeaksOut = testDir.resolve(subPeaksFilename)
+        var peaksOut = testDir.resolve(peaksFilename)
+        var subPeaksOut = testDir.resolve(subPeaksFilename)
 
         val pileUp = runPileUp(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))
             .getValue(TEST_BAM_CHR)
@@ -30,8 +30,8 @@ class AppTests {
         val subPeaks = SkewFitter.fitChrom(TEST_BAM_CHR, peaks, pdf)
         writeSkewSubPeaksBed(subPeaksOut, mapOf(TEST_BAM_CHR to subPeaks))
 
-        Files.copy(peaksOut, TEST_BAM_PATH.resolveSibling(peaksFilename), StandardCopyOption.REPLACE_EXISTING)
-        Files.copy(subPeaksOut, TEST_BAM_PATH.resolveSibling(subPeaksFilename), StandardCopyOption.REPLACE_EXISTING)
+        peaksOut = peaksOut.copyToAndDelete(TEST_BAM_PATH.resolveSibling(peaksFilename))
+        subPeaksOut = subPeaksOut.copyToAndDelete(TEST_BAM_PATH.resolveSibling(subPeaksFilename))
 
         // Check the Peaks output file.
         val (peaksLineCount, peaksLineSample) = sampleOutputFile(peaksOut)
