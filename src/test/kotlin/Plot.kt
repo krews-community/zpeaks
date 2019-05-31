@@ -24,10 +24,8 @@ class Plot {
 
     @Test
     fun `Plot Pile Up, PDF, and Peaks`() {
-        val sampleRange =
-            //20_890_000 until 20_910_000
-            16_774_000 until 16_776_000 // 16_774_965 until 16_774_997
-        val displayRange = sampleRange withNSteps 500
+        val sampleRange = 20_890_000 until 20_910_000
+        val displayRange = sampleRange withNSteps 1000
         val pileUp = runPileUp(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))
             .getValue(TEST_BAM_CHR)
 

@@ -1,3 +1,4 @@
+import io.SignalOutputFormat
 import model.*
 import mu.KotlinLogging
 import org.junit.jupiter.api.*
@@ -24,12 +25,14 @@ class PerformanceTest {
     @Test
     fun `Run Skew Sub-Peaks on All Peaks`() {
         val testSamIn = TEST_BAM_PATH
+        val signalFilename = "${testSamIn.filenameWithoutExtension()}.signal.bedGraph"
         val subPeaksFilename = "${testSamIn.filenameWithoutExtension()}.subPeaks.bed"
         val testDir = Files.createTempDirectory("zpeaks_test")
+        val signalOut = testDir.resolve(signalFilename)
         val subPeaksOut = testDir.resolve(subPeaksFilename)
 
         run(samIn = testSamIn,
-            signalOut = null,
+            signalOut = SignalOutput(signalOut, SignalOutputType.SMOOTHED, SignalOutputFormat.BED_GRAPH),
             peaksOut = null,
             subPeaksOut = subPeaksOut,
             pileUpOptions = PileUpOptions(Strand.BOTH, PileUpAlgorithm.START),
@@ -38,7 +41,8 @@ class PerformanceTest {
             threshold = 6.0,
             fitMode = FitMode.SKEW)
 
-        Files.copy(subPeaksOut, TEST_BAM_PATH.resolveSibling(subPeaksFilename), StandardCopyOption.REPLACE_EXISTING)
+        Files.copy(signalOut, testSamIn.resolveSibling(signalFilename), StandardCopyOption.REPLACE_EXISTING)
+        Files.copy(subPeaksOut, testSamIn.resolveSibling(subPeaksFilename), StandardCopyOption.REPLACE_EXISTING)
     }
 
     @Test

@@ -23,11 +23,6 @@ class IOTests {
     }
 
     @Test
-    fun `test pile-up output in bigwig format`() {
-        testPileUpFormat("ENCFF375IJW.chr22.pileup.bw", SignalOutputFormat.BIG_WIG, checkContents = false)
-    }
-
-    @Test
     fun `test pile-up output in bed-graph format`() {
         testPileUpFormat("ENCFF375IJW.chr22.pileup.bedGraph", SignalOutputFormat.BED_GRAPH)
     }

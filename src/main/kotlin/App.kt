@@ -17,7 +17,7 @@ class ZPeaks : CliktCommand() {
         .default(SignalOutputType.SMOOTHED)
     private val signalOutFormat: SignalOutputFormat by option("-signalOutFormat")
         .choice(SignalOutputFormat.values().associateBy { it.lowerHyphenName })
-        .default(SignalOutputFormat.BIG_WIG)
+        .default(SignalOutputFormat.BED_GRAPH)
     private val peaksOut: Path? by option("-peaksOut", help="Output Peaks bed file").path()
     private val subPeaksOut: Path? by option("-subPeaksOut", help="Output Sub-Peaks bed file").path()
     private val strand: Strand by option("-strand", help="Strand to count during pile-up")
@@ -53,21 +53,25 @@ class ZPeaks : CliktCommand() {
         if (signalOutPath == null && peaksOut == null && subPeaksOut == null)
             throw Exception("One of the following must be set: -signalOut, -peaksOut, or -subPeaksOut")
         val signalOut =
-            if (signalOutPath != null) SignalOutput(signalOutPath!!, signalOutType, signalOutFormat)
+            if (signalOutPath != null) SignalOutput(signalOutPath!!, signalOutType, signalOutFormat, signalResolution)
             else null
         val pileUpOptions = PileUpOptions(strand, pileUpAlgorithm, forwardShift, reverseShift)
         run(samIn, signalOut, peaksOut, subPeaksOut, pileUpOptions, smoothing, normalizePDF,
-            threshold, fitMode, signalResolution, parallelism)
+            threshold, fitMode, parallelism)
     }
 }
 
 enum class FitMode { SKEW, STANDARD }
-data class SignalOutput(val path: Path, val type: SignalOutputType, val format: SignalOutputFormat)
+data class SignalOutput(
+    val path: Path,
+    val type: SignalOutputType,
+    val format: SignalOutputFormat,
+    val signalResolution: Int = 1
+)
 enum class SignalOutputType { RAW, SMOOTHED }
 
 fun run(samIn: Path, signalOut: SignalOutput?, peaksOut: Path?, subPeaksOut: Path?, pileUpOptions: PileUpOptions,
-        smoothing: Double, normalizePDF: Boolean, threshold: Double, fitMode: FitMode = FitMode.SKEW,
-        signalResolution: Int = 1, parallelism: Int? = null) {
+        smoothing: Double, normalizePDF: Boolean, threshold: Double, fitMode: FitMode = FitMode.SKEW, parallelism: Int? = null) {
     if (parallelism != null) {
         System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", parallelism.toString())
     }
@@ -79,7 +83,7 @@ fun run(samIn: Path, signalOut: SignalOutput?, peaksOut: Path?, subPeaksOut: Pat
 
     val pdfs = runSmooth(pileUps, smoothing, normalizePDF)
     if (signalOut != null && signalOut.type == SignalOutputType.SMOOTHED) {
-        createSignalFile(signalOut.path, signalOut.format, pdfs, signalResolution)
+        createSignalFile(signalOut.path, signalOut.format, pdfs, signalOut.signalResolution)
     }
 
     val peaks = callPeaks(pdfs, threshold)

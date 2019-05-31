@@ -14,11 +14,11 @@ const val BACKGROUND_LIMIT = 1000
 data class Background(val average: Double, val stdDev: Double)
 
 class PDF(
-    private val values: AtomicDoubleArray,
+    private val values: FloatArray,
     val background: Background,
     override val chrLength: Int
 ): SignalData {
-    override operator fun get(bp: Int): Double = values[bp]
+    override operator fun get(bp: Int): Double = values[bp].toDouble()
 }
 
 fun runSmooth(pileUps: MutableMap<String, PileUp>, smoothing: Double, normalizePDF: Boolean): Map<String, PDF> {
@@ -70,7 +70,10 @@ fun pdf(chr: String, pileUp: PileUp, bandwidth: Double, normalizePDF: Boolean, o
     }
 
     val background = background(lookupTable, pileUp.sum, windowSize, pileUp.chrLength)
-    return PDF(pdfValues, background, pileUp.chrLength)
+    // Store as regular DoubleArray after calculating PDF because they're smaller.
+    val floatPileUp = FloatArray(pileUp.chrLength)
+    for (i in 0 until pileUp.chrLength) floatPileUp[i] = pdfValues[i].toFloat()
+    return PDF(floatPileUp, background, pileUp.chrLength)
 }
 
 private fun windowSize(bandwidth: Double): Int {
