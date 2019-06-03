@@ -25,9 +25,9 @@ fun logProgress(name: String, total: Int, run: (tracker: AtomicInteger) -> Unit)
     logExecutor.shutdown()
 }
 
-fun <T> runParallel (name: String, values: List<T>, runForValue: (value: T) -> Unit) {
+fun <T> runParallel (name: String, valueLabel: String, values: List<T>, runForValue: (value: T) -> Unit) {
     val commonPool = ForkJoinPool.commonPool()
-    log.info { "$name initiated: ${values.size} runs with parallelism = ${commonPool.parallelism}" }
+    log.info { "$name initiated for ${values.size} $valueLabel" }
 
     logProgress(name, values.size) { tracker ->
         // Run each search result into a "Callable" thread object to write the results.

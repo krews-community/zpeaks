@@ -3,11 +3,15 @@ import com.github.ajalt.clikt.parameters.options.*
 import com.github.ajalt.clikt.parameters.types.*
 import io.*
 import model.*
+import mu.KotlinLogging
 import step.*
 import step.subpeaks.*
 import util.*
 import java.nio.file.Path
+import java.util.concurrent.ForkJoinPool
 
+
+private val log = KotlinLogging.logger {}
 
 class ZPeaks : CliktCommand() {
     private val samIn: Path by option("-samIn", help="Input Sam or Bam alignment file").path().required()
@@ -75,6 +79,7 @@ fun run(samIn: Path, signalOut: SignalOutput?, peaksOut: Path?, subPeaksOut: Pat
     if (parallelism != null) {
         System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", parallelism.toString())
     }
+    log.info { "ZPeaks run started with parallelism = ${ForkJoinPool.commonPool().parallelism}" }
 
     val pileUps = runPileUp(samIn, pileUpOptions)
     if (signalOut != null && signalOut.type == SignalOutputType.RAW) {

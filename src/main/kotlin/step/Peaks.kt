@@ -3,18 +3,17 @@ package step
 import model.Region
 import mu.KotlinLogging
 import org.apache.commons.math3.util.FastMath.*
+import util.runParallel
 
 private val log = KotlinLogging.logger {}
 
 data class Peak(val region: Region, val score: Double)
 
 fun callPeaks(pdfs: Map<String, PDF>, threshold: Double): Map<String, List<Peak>> {
-    log.info { "Calling peaks..." }
     val peaks = mutableMapOf<String, List<Peak>>()
-    for ((chr, pdf) in pdfs) {
-        peaks[chr] = callChromPeaks(pdf, threshold)
+    runParallel("Peak Calling", "chromosomes", pdfs.keys.toList()) { chr ->
+        peaks[chr] = callChromPeaks(pdfs.getValue(chr), threshold)
     }
-    log.info { "Peak calling complete!" }
     return peaks
 }
 

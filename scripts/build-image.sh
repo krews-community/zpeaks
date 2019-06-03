@@ -8,4 +8,13 @@ set -e
 # cd to project root directory
 cd "$(dirname "$(dirname "$0")")"
 
-./gradlew shadowJar
+# import common stuff
+source scripts/lib/common.sh
+
+# Exit if one arg not given
+if [[ -z "$1" ]]; then
+    echo "One argument required.";
+    exit;
+fi
+
+docker build -t ${DOCKER_ORG}/${IMAGE_NAME}:${1} .

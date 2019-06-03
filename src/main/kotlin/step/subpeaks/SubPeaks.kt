@@ -53,7 +53,7 @@ abstract class Fitter<T : GaussianParameters> (private val name: String, val opt
     fun fitChrom(chr: String, peaks: List<Peak>, pdf: PDF): List<SubPeak<T>> {
         (peaks as MutableList).sortByDescending { it.region.end - it.region.start }
         val subPeaks = Collections.synchronizedList(mutableListOf<SubPeak<T>>())
-        runParallel("$name on $chr", peaks) { peak ->
+        runParallel("$name on $chr", "peaks", peaks) { peak ->
             val region = peak.region
             val peakValues = (region.start..region.end).map { pdf[it] }
             subPeaks += fitPeak(peakValues, region.start).flatMap { fit ->
