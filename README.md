@@ -24,7 +24,7 @@ followed by the arguments you need:
 
 ### Arguments
 
-| Name |  Description | Default |
+| Name <img width=200/> |  Description | Default |
 |---|---|---|
 | `-samIn`| Input Sam or Bam alignment file. | |
 | `-signalOut`| Output Signal File. Enables signal output. | |
