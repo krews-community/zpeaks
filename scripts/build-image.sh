@@ -1,7 +1,7 @@
 #!/bin/sh
 # Builds docker container and tags it. Takes 1 arg:
 # arg1: docker image tag (Optional)
-# Example usage: scripts/push-image.sh v1.0.0
+# Example usage: scripts/build-image.sh v1.0.0
 set -e
 
 
