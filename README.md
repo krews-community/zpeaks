@@ -26,23 +26,23 @@ followed by the arguments you need:
 
 | Name |  Description | Default |
 |---|---|---|
-| ```-samIn```| Input Sam or Bam alignment file. | |
-| ```-signalOut```| Output Signal File. Enables signal output. | |
-| ```-signalOutType```| Output "raw" and "smoothed" Pile-Up data to the signal file. | smoothed |
-| ```-signalOutFormat```| Output Signal File to "wig" or "bed-graph" file | bed-graph |
-| ```-peaksOut```| Output peaks bed file. | |
-| ```-subPeaksOut```| Output sub-peaks bed file. | |
-| ```-strand```| Strand to count during pile-up. "plus", "minus", or "both" | both |
-| ```-signalResolution```| Number of decimal places to keep in outputted signal values. | 1 |
-| ```-forwardShift```| During pile-up, shift the forward strand by this amount. Can be positive or negative. | 0 |
-| ```-reverseShift```| During pile-up, shift the reverse strand by this amount. Can be positive or negative. | 0 |
-| ```-pileUpAlgorithm```| Algorithm used to select values during pile-up. "start", "midpoint", or "length" | start |
-| ```-smoothingFactor``` | Smoothing factor for calculating PDF for pile-up data during peaks step. | 50.0 |
-| ```-normalizePdf```| If true, PDF values are scaled to the natural gaussian amplitude. | |
-| ```-threshold```| Threshold used during peak calling. | 6.0 |
-| ```-fitMode```| Sub-peak fitting modes. "skew" or "standard" | skew |
-| ```-parallelism```| Number of threads to use for parallel operations. | Number of cores on machine |
-| ```-h```, ```--help```| Show help message and exit. | |
+| `-samIn`| Input Sam or Bam alignment file. | |
+| `-signalOut`| Output Signal File. Enables signal output. | |
+| `-signalOutType`| Output "raw" and "smoothed" Pile-Up data to the signal file. | smoothed |
+| `-signalOutFormat`| Output Signal File to "wig" or "bed-graph" file | bed-graph |
+| `-peaksOut`| Output peaks bed file. | |
+| `-subPeaksOut`| Output sub-peaks bed file. | |
+| `-strand`| Strand to count during pile-up. "plus", "minus", or "both" | both |
+| `-signalResolution`| Number of decimal places to keep in outputted signal values. | 1 |
+| `-forwardShift`| During pile-up, shift the forward strand by this amount. Can be positive or negative. | 0 |
+| `-reverseShift`| During pile-up, shift the reverse strand by this amount. Can be positive or negative. | 0 |
+| `-pileUpAlgorithm`| Algorithm used to select values during pile-up. "start", "midpoint", or "length" | start |
+| `-smoothingFactor` | Smoothing factor for calculating PDF for pile-up data during peaks step. | 50.0 |
+| `-normalizePdf`| If true, PDF values are scaled to the natural gaussian amplitude. | |
+| `-threshold`| Threshold used during peak calling. | 6.0 |
+| `-fitMode`| Sub-peak fitting modes. "skew" or "standard" | skew |
+| `-parallelism`| Number of threads to use for parallel operations. | Number of cores on machine |
+| `-h`, `--help`| Show help message and exit. | |
 
 The sam input file and at least one output file are required. Here's how a complete command with arguments should look:
 
