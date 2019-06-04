@@ -42,7 +42,7 @@ followed by the arguments you need:
 | ```-threshold```| Threshold used during peak calling. | 6.0 |
 | ```-fitMode```| Sub-peak fitting modes. "skew" or "standard" | skew |
 | ```-parallelism```| Number of threads to use for parallel operations. | Number of cores on machine |
-| ```-h`, `--help```| Show help message and exit. | |
+| ```-h```, ```--help```| Show help message and exit. | |
 
 The sam input file and at least one output file are required. Here's how a complete command with arguments should look:
 
