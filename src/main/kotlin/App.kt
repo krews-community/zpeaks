@@ -28,7 +28,7 @@ class ZPeaks : CliktCommand() {
         .choice(Strand.values().associateBy { it.lowerHyphenName })
         .default(Strand.BOTH)
     private val signalResolution: Int by option("-signalResolution",
-        help="Number of decimal places to keep in bigWig signal values")
+        help="Number of decimal places to keep in outputted signal values")
         .int().default(1)
     private val forwardShift by option("-forwardShift", help="During pile-up, shift the " +
             "forward strand by this amount. Can be positive or negative. Default 0.")
