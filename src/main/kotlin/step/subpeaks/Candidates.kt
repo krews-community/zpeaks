@@ -13,11 +13,13 @@ data class CandidateGaussian<T : GaussianParameters>(
     val parameters: T
 )
 
-fun findCandidates(data: List<Double>, fromSplit: Boolean = false): List<Region> {
+fun findCandidates(data: List<Double>): List<Region> {
+    val background = min(data.first(), data.last())
+    val dataWithoutBackground = data.map { it - background }
     var zeroCrossings = mutableListOf<Int>()
 
     // Smooth at this kernel width
-    val blurred = scaleSpaceSmooth(data, 1.0)
+    val blurred = scaleSpaceSmooth(dataWithoutBackground, 1.0)
 
     // Get the zero crossings for this kernel size
     var cSign = blurred[0] > 0
@@ -32,13 +34,8 @@ fun findCandidates(data: List<Double>, fromSplit: Boolean = false): List<Region>
      * When we split, we pretty much guarantee that one or both sides will start significantly higher than 0,
      * resulting in extra zero-crossings very close to the ends.
      *
-     * So, if we have an odd number of zero crossings we assume the problem is on the ends and chop off
-     * the higher end. Odd numbers of zero crossings are always invalid and usually happen when a section
-     * is split from just one side.
-     *
-     * When we have an even number of zero crossings, we have to be more careful. We check if it came from a split and
-     * if the first and last zero crossings are very close to the ends. This usually happens when we split from
-     * the middle. It's a heuristic, but seems to work.
+     * When we take out the background, we guarantee there can't be more than 1 side with an extra zero crossing. So,
+     * if we check for an odd number, we can remove the extra zero crossing at the side that starts higher.
      */
     if (zeroCrossings.size % 2 == 1) {
         val first = data.first()
@@ -49,8 +46,6 @@ fun findCandidates(data: List<Double>, fromSplit: Boolean = false): List<Region>
         if (last > first) {
             zeroCrossings = zeroCrossings.subList(0, zeroCrossings.size-1)
         }
-    } else if (fromSplit && zeroCrossings.first() <= 5 && data.size - zeroCrossings.last() <= 5) {
-        zeroCrossings = zeroCrossings.subList(1, zeroCrossings.size-1)
     }
 
     val candidates = mutableListOf<Region>()

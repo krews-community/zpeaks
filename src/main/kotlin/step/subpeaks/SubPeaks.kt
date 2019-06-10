@@ -84,7 +84,7 @@ abstract class Fitter<T : GaussianParameters> (private val name: String, val opt
             val scaledValues = valuesToFit.map { it / avg }
 
             // Get initial candidates list
-            val candidateRegions = findCandidates(scaledValues, splitValues.size > 1)
+            val candidateRegions = findCandidates(scaledValues)
             if (candidateRegions.isEmpty()) continue
             val candidateGaussians = candidateGaussians(scaledValues, candidateRegions, ::initParameters)
 
@@ -122,22 +122,25 @@ private fun parametersToScore(parameters: GaussianParameters) =
 const val SUB_PEAKS_HARD_MAX = 5000
 const val SUB_PEAKS_SOFT_MAX = 2000
 const val SUB_PEAKS_SOFT_MAX_RATIO = 0.05
+const val SPLIT_BUFFER = 0.15
 
 fun splitIndexForFit(values: List<Double>): Int? {
     if (values.size <= SUB_PEAKS_SOFT_MAX) return null
 
     // look only within a buffer to make sure we shrink the sizes by a reasonable amount
-    val bufferSize = values.size / 5
-    val minIndex = values.subList(bufferSize, values.size - bufferSize)
-        .withIndex().minBy { it.value }!!.index + bufferSize
+    val bufferSize = (values.size * SPLIT_BUFFER).toInt()
+    val localMinima = localMinima(values)
+    val splitIndex = localMinima
+        .filter { (index, _) -> index > bufferSize && index < values.size - bufferSize }
+        .minBy { (_, value) -> value }!!.first
 
     if (values.size <= SUB_PEAKS_HARD_MAX) {
-        val minMaxRatio = values[minIndex] / values.max()!!
+        val minMaxRatio = values[splitIndex] / values.max()!!
         if (minMaxRatio > SUB_PEAKS_SOFT_MAX_RATIO) return null
     }
 
     // Return two halves, split at min index.
-    return minIndex
+    return splitIndex
 }
 
 fun splitForFit(values: List<Double>): List<List<Double>> {
@@ -145,4 +148,18 @@ fun splitForFit(values: List<Double>): List<List<Double>> {
     val splitFirst = splitForFit(values.subList(0, splitIndex))
     val splitSecond = splitForFit(values.subList(splitIndex, values.size))
     return splitFirst + splitSecond
+}
+
+fun localMinima(values: List<Double>): List<Pair<Int, Double>> {
+    var goingUp = true
+    val localMinima = mutableListOf<Pair<Int, Double>>()
+    for(index in 1 until values.size) {
+        if (goingUp && values[index-1] > values[index]) {
+            goingUp = false
+        } else if (!goingUp && values[index-1] < values[index]) {
+            goingUp = true
+            localMinima += index - 1 to values[index - 1]
+        }
+    }
+    return localMinima
 }

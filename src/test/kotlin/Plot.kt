@@ -9,7 +9,7 @@ import step.subpeaks.*
 import java.awt.Color
 import kotlin.math.min
 
-
+// Sample Ranges for Primary Single Alignment Test File
 val SAMPLE_RANGE_SMALL = 10_000_000 until 15_000_000 // Single curve
 val SAMPLE_RANGE_SMALL_2 = 16_773_000 until 16_776_000 // Two curves, one small
 val SAMPLE_RANGE_MED = 41_000_000 until 42_000_000
@@ -23,43 +23,53 @@ class Plot {
     @AfterEach fun stop() = Thread.sleep(Long.MAX_VALUE)
 
     @Test
-    fun `Plot Pile Up, PDF, and Peaks`() {
-        val sampleRange = 20_890_000 until 20_910_000
-        val displayRange = sampleRange withNSteps 1000
-        val pileUp = runPileUp(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))
-            .getValue(TEST_BAM_CHR)
-
-        val bpUnits = BPUnits.MBP
-        val pileUpChartData = bpData(displayRange, bpUnits) {
-            pileUp[it].toDouble()
-        }
-        val pileUpChart = xyAreaChart("Pile Up", bpUnits, pileUpChartData)
-
-        val pdf = pdf(TEST_BAM_CHR, pileUp,50.0, false, sampleRange)
-        val pdfChartData = bpData(displayRange, bpUnits) {
-            (pdf[it] - pdf.background.average) / pdf.background.stdDev
-        }
-        val pdfChart = xyAreaChart("PDF (in Standard Deviations from Avg)", bpUnits, pdfChartData)
-
-        val threshold = 6.0
-        val peaks = callChromPeaks(pdf, threshold)
-        val peaksChartData = regionsData(peaks.map { it.region }, displayRange, bpUnits)
-        val peaksChart = xyAreaChart("Peaks Over $threshold", bpUnits, peaksChartData)
-
-        SwingWrapper(listOf(pileUpChart, pdfChart, peaksChart)).displayChartMatrix()
-    }
+    fun `Plot Single Alignment PDF`() = plotPdf(singleFilePileUp(), 20_890_000 until 20_910_000)
 
     @Test
-    fun `Plot Skew Sub-Peaks`() = plotSubPeaks(SAMPLE_RANGE_LARGEST, SkewFitter)
+    fun `Plot Multi Alignment PDF`() = plotPdf(multiFilePileUp(), 30_000_000 until 30_025_000)
 
     @Test
-    fun `Plot Standard Sub-Peaks`() = plotSubPeaks(SAMPLE_RANGE_LARGEST, StandardFitter)
+    fun `Plot Skew Sub-Peaks from Multiple Alignments`() =
+        plotSubPeaks(multiFilePileUp(), 30_000_000 until 30_400_000, SkewFitter)
+
+    @Test
+    fun `Plot Skew Sub-Peaks`() = plotSubPeaks(singleFilePileUp(), SAMPLE_RANGE_LARGEST, SkewFitter)
+
+    @Test
+    fun `Plot Standard Sub-Peaks`() = plotSubPeaks(singleFilePileUp(), SAMPLE_RANGE_LARGEST, StandardFitter)
 
 }
 
-private fun <T: GaussianParameters> plotSubPeaks(sampleRange: IntRange, fitter: Fitter<T>) {
-    val pileUp = runPileUp(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))
-        .getValue(TEST_BAM_CHR)
+private fun singleFilePileUp() = runPileUp(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))
+    .getValue(TEST_BAM_CHR)
+
+private fun multiFilePileUp() = runPileUp(listOf(MULTI_BAM_1_PATH, MULTI_BAM_2_PATH, MULTI_BAM_3_PATH, MULTI_BAM_4_PATH)
+            .map { PileUpInput(it, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START)) }).getValue(MULTI_BAM_CHR)
+
+private fun plotPdf(pileUp: PileUp, sampleRange: IntRange) {
+    val displayRange = sampleRange withNSteps 1000
+
+    val bpUnits = BPUnits.MBP
+    val pileUpChartData = bpData(displayRange, bpUnits) {
+        pileUp[it].toDouble()
+    }
+    val pileUpChart = xyAreaChart("Pile Up", bpUnits, pileUpChartData)
+
+    val pdf = pdf(TEST_BAM_CHR, pileUp,50.0, false, sampleRange)
+    val pdfChartData = bpData(displayRange, bpUnits) {
+        (pdf[it] - pdf.background.average) / pdf.background.stdDev
+    }
+    val pdfChart = xyAreaChart("PDF (in Standard Deviations from Avg)", bpUnits, pdfChartData)
+
+    val threshold = 6.0
+    val peaks = callChromPeaks(pdf, threshold)
+    val peaksChartData = regionsData(peaks.map { it.region }, displayRange, bpUnits)
+    val peaksChart = xyAreaChart("Peaks Over $threshold", bpUnits, peaksChartData)
+
+    SwingWrapper(listOf(pileUpChart, pdfChart, peaksChart)).displayChartMatrix()
+}
+
+private fun <T: GaussianParameters> plotSubPeaks(pileUp: PileUp, sampleRange: IntRange, fitter: Fitter<T>) {
 
     val pdf = pdf(TEST_BAM_CHR, pileUp, 50.0, false, sampleRange)
     val peaks = callChromPeaks(pdf, 6.0)

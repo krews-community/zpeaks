@@ -14,7 +14,9 @@ import java.util.concurrent.ForkJoinPool
 private val log = KotlinLogging.logger {}
 
 class ZPeaks : CliktCommand() {
-    private val samIn: Path by option("-samIn", help="Input Sam or Bam alignment file").path().required()
+    private val samIn: Path by option("-samIn", help="Input Sam or Bam alignment file")
+        .path(exists = true)
+        .required()
     private val signalOutPath: Path? by option("-signalOut", help="Output Pile-Up file").path()
     private val signalOutType: SignalOutputType by option("-signalOutType")
         .choice(SignalOutputType.values().associateBy { it.lowerHyphenName })
@@ -60,7 +62,8 @@ class ZPeaks : CliktCommand() {
             if (signalOutPath != null) SignalOutput(signalOutPath!!, signalOutType, signalOutFormat, signalResolution)
             else null
         val pileUpOptions = PileUpOptions(strand, pileUpAlgorithm, forwardShift, reverseShift)
-        run(samIn, signalOut, peaksOut, subPeaksOut, pileUpOptions, smoothing, normalizePDF,
+        val pileUpInput = PileUpInput(samIn, pileUpOptions)
+        run(listOf(pileUpInput), signalOut, peaksOut, subPeaksOut, smoothing, normalizePDF,
             threshold, fitMode, parallelism)
     }
 }
@@ -74,14 +77,14 @@ data class SignalOutput(
 )
 enum class SignalOutputType { RAW, SMOOTHED }
 
-fun run(samIn: Path, signalOut: SignalOutput?, peaksOut: Path?, subPeaksOut: Path?, pileUpOptions: PileUpOptions,
+fun run(pileUpInputs: List<PileUpInput>, signalOut: SignalOutput?, peaksOut: Path?, subPeaksOut: Path?,
         smoothing: Double, normalizePDF: Boolean, threshold: Double, fitMode: FitMode = FitMode.SKEW, parallelism: Int? = null) {
     if (parallelism != null) {
         System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", parallelism.toString())
     }
     log.info { "ZPeaks run started with parallelism = ${ForkJoinPool.commonPool().parallelism}" }
 
-    val pileUps = runPileUp(samIn, pileUpOptions)
+    val pileUps = runPileUp(pileUpInputs)
     if (signalOut != null && signalOut.type == SignalOutputType.RAW) {
         createSignalFile(signalOut.path, signalOut.format, pileUps)
     }
