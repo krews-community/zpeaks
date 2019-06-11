@@ -28,6 +28,7 @@ dependencies {
     compile("com.google.guava", "guava", "27.1-jre")
 
     testImplementation("org.junit.jupiter", "junit-jupiter", "5.4.0")
+    testImplementation("io.mockk:mockk:1.9.3")
     testCompile("org.assertj", "assertj-core", "3.11.1")
     testCompile("org.knowm.xchart", "xchart", "3.5.4")
 }

@@ -32,14 +32,14 @@ class PerformanceTest {
         val signalOut = testDir.resolve(signalFilename)
         val subPeaksOut = testDir.resolve(subPeaksFilename)
 
-        run(listOf(PileUpInput(testSamIn, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))),
+        run(ZPeaksRunConfig(listOf(PileUpInput(testSamIn, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))),
             signalOut = SignalOutput(signalOut, SignalOutputType.SMOOTHED, SignalOutputFormat.BED_GRAPH),
             peaksOut = null,
             subPeaksOut = subPeaksOut,
             smoothing = 50.0,
             normalizePDF = false,
             threshold = 6.0,
-            fitMode = FitMode.SKEW)
+            fitMode = FitMode.SKEW))
 
         signalOut.copyToAndDelete(testSamIn.resolveSibling(signalFilename))
         subPeaksOut.copyToAndDelete(testSamIn.resolveSibling(subPeaksFilename))
@@ -53,14 +53,14 @@ class PerformanceTest {
         val subPeaksFilename = "multi_test.subPeaks.bed"
         val testDir = Files.createTempDirectory("zpeaks_test")
         val subPeaksOut = testDir.resolve(subPeaksFilename)
-        run(pileUpInputs,
+        run(ZPeaksRunConfig(pileUpInputs,
             signalOut = null,
             peaksOut = null,
             subPeaksOut = subPeaksOut,
             smoothing = 50.0,
             normalizePDF = false,
             threshold = 6.0,
-            fitMode = FitMode.SKEW)
+            fitMode = FitMode.SKEW))
 
         subPeaksOut.copyToAndDelete(MULTI_BAM_1_PATH.resolveSibling(subPeaksFilename))
     }

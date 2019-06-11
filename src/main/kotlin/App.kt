@@ -13,10 +13,11 @@ import java.util.concurrent.ForkJoinPool
 
 private val log = KotlinLogging.logger {}
 
-class ZPeaks : CliktCommand() {
-    private val samIn: Path by option("-samIn", help="Input Sam or Bam alignment file")
+class ZPeaksCommand(val run: (ZPeaksRunConfig) -> Unit = ::run): CliktCommand() {
+    private val samsIn: List<Path> by option("-samIn", help="Input Sam or Bam alignment file")
         .path(exists = true)
-        .required()
+        .multiple()
+        .validate { require(it.isNotEmpty()) { "At least one path must be given" } }
     private val signalOutPath: Path? by option("-signalOut", help="Output Pile-Up file").path()
     private val signalOutType: SignalOutputType by option("-signalOutType")
         .choice(SignalOutputType.values().associateBy { it.lowerHyphenName })
@@ -26,22 +27,24 @@ class ZPeaks : CliktCommand() {
         .default(SignalOutputFormat.BED_GRAPH)
     private val peaksOut: Path? by option("-peaksOut", help="Output Peaks bed file").path()
     private val subPeaksOut: Path? by option("-subPeaksOut", help="Output Sub-Peaks bed file").path()
-    private val strand: Strand by option("-strand", help="Strand to count during pile-up")
+    private val strands: List<Strand> by option("-strand", help="Strand to count during pile-up")
         .choice(Strand.values().associateBy { it.lowerHyphenName })
-        .default(Strand.BOTH)
+        .multiple(listOf(Strand.BOTH))
+    private val forwardShifts by option("-forwardShift", help="During pile-up, shift the " +
+            "forward strand by this amount. Can be positive or negative. Default 0.")
+        .int()
+        .multiple(listOf(0))
+    private val reverseShifts by option("-reverseShift", help="During pile-up, shift the " +
+            "reverse strand by this amount. Can be positive or negative. Default 0.")
+        .int()
+        .multiple(listOf(0))
+    private val pileUpAlgorithms: List<PileUpAlgorithm> by option("-pileUpAlgorithm",
+        help="Algorithm used to select values during pile up.")
+        .choice(PileUpAlgorithm.values().associateBy { it.lowerHyphenName })
+        .multiple(listOf(PileUpAlgorithm.START))
     private val signalResolution: Int by option("-signalResolution",
         help="Number of decimal places to keep in outputted signal values")
         .int().default(1)
-    private val forwardShift by option("-forwardShift", help="During pile-up, shift the " +
-            "forward strand by this amount. Can be positive or negative. Default 0.")
-        .int().default(0)
-    private val reverseShift by option("-reverseShift", help="During pile-up, shift the " +
-            "reverse strand by this amount. Can be positive or negative. Default 0.")
-        .int().default(0)
-    private val pileUpAlgorithm: PileUpAlgorithm by option("-pileUpAlgorithm",
-        help="Algorithm used to select values during pile up.")
-        .choice(PileUpAlgorithm.values().associateBy { it.lowerHyphenName })
-        .default(PileUpAlgorithm.START)
     private val smoothing: Double by option("-smoothingFactor",
         help="Smoothing Factor for calculating PDF for Pile Up data during Peaks step.").double()
         .default(50.0)
@@ -61,10 +64,18 @@ class ZPeaks : CliktCommand() {
         val signalOut =
             if (signalOutPath != null) SignalOutput(signalOutPath!!, signalOutType, signalOutFormat, signalResolution)
             else null
-        val pileUpOptions = PileUpOptions(strand, pileUpAlgorithm, forwardShift, reverseShift)
-        val pileUpInput = PileUpInput(samIn, pileUpOptions)
-        run(listOf(pileUpInput), signalOut, peaksOut, subPeaksOut, smoothing, normalizePDF,
-            threshold, fitMode, parallelism)
+
+        val pileUpInputs = mutableListOf<PileUpInput>()
+        for ((samIndex, sam) in samsIn.withIndex()) {
+            val strand = strands.getOrElse(samIndex) { strands.last() }
+            val pileUpAlgorithm = pileUpAlgorithms.getOrElse(samIndex) { pileUpAlgorithms.last() }
+            val forwardShift = forwardShifts.getOrElse(samIndex) { forwardShifts.last() }
+            val reverseShift = reverseShifts.getOrElse(samIndex) { reverseShifts.last() }
+            val pileUpOptions = PileUpOptions(strand, pileUpAlgorithm, forwardShift, reverseShift)
+            pileUpInputs += PileUpInput(sam, pileUpOptions)
+        }
+
+        run(ZPeaksRunConfig(pileUpInputs, signalOut, peaksOut, subPeaksOut, smoothing, normalizePDF, threshold, fitMode, parallelism))
     }
 }
 
@@ -77,8 +88,19 @@ data class SignalOutput(
 )
 enum class SignalOutputType { RAW, SMOOTHED }
 
-fun run(pileUpInputs: List<PileUpInput>, signalOut: SignalOutput?, peaksOut: Path?, subPeaksOut: Path?,
-        smoothing: Double, normalizePDF: Boolean, threshold: Double, fitMode: FitMode = FitMode.SKEW, parallelism: Int? = null) {
+data class ZPeaksRunConfig(
+    val pileUpInputs: List<PileUpInput>,
+    val signalOut: SignalOutput?,
+    val peaksOut: Path?,
+    val subPeaksOut: Path?,
+    val smoothing: Double,
+    val normalizePDF: Boolean,
+    val threshold: Double,
+    val fitMode: FitMode = FitMode.SKEW,
+    val parallelism: Int? = null
+)
+
+fun run(config: ZPeaksRunConfig) = with(config) {
     if (parallelism != null) {
         System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", parallelism.toString())
     }
@@ -109,4 +131,4 @@ fun run(pileUpInputs: List<PileUpInput>, signalOut: SignalOutput?, peaksOut: Pat
     }
 }
 
-fun main(args: Array<String>) = ZPeaks().main(args)
+fun main(args: Array<String>) = ZPeaksCommand().main(args)
