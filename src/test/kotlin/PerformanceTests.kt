@@ -15,10 +15,10 @@ class PerformanceTest {
     @Test
     fun `Run Skew Sub-Peaks on Large Peak`() {
         val pileUp = pileUp()
-        val pdf = pdf(TEST_BAM_CHR, pileUp, 50.0, false)
+        val pdf = pdf(pileUp, 50.0, false)
         val peaks = callChromPeaks(pdf, 6.0)
 
-        val maxPeak = peaks.maxBy { it.region.end - it.region.start }!!
+        val maxPeak = peaks.maxBy { it.end - it.start }!!
         SkewFitter.fitChrom(TEST_BAM_CHR, listOf(maxPeak), pdf)
     }
 
@@ -27,22 +27,21 @@ class PerformanceTest {
         val testSamIn = TEST_BAM_2_PATH
             //TEST_BAM_PATH
         val signalFilename = "${testSamIn.filenameWithoutExtension()}.signal.bedGraph"
-        val subPeaksFilename = "${testSamIn.filenameWithoutExtension()}.subPeaks.bed"
+        val peaksFilename = "${testSamIn.filenameWithoutExtension()}.peaks.bed"
         val testDir = Files.createTempDirectory("zpeaks_test")
         val signalOut = testDir.resolve(signalFilename)
-        val subPeaksOut = testDir.resolve(subPeaksFilename)
+        val peaksOut = testDir.resolve(peaksFilename)
 
         run(ZPeaksRunConfig(listOf(PileUpInput(testSamIn, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))),
             signalOut = SignalOutput(signalOut, SignalOutputType.SMOOTHED, SignalOutputFormat.BED_GRAPH),
-            peaksOut = null,
-            subPeaksOut = subPeaksOut,
+            peaksOut = peaksOut,
             smoothing = 50.0,
             normalizePDF = false,
             threshold = 6.0,
             fitMode = FitMode.SKEW))
 
         signalOut.copyToAndDelete(testSamIn.resolveSibling(signalFilename))
-        subPeaksOut.copyToAndDelete(testSamIn.resolveSibling(subPeaksFilename))
+        peaksOut.copyToAndDelete(testSamIn.resolveSibling(peaksFilename))
     }
 
     @Test
@@ -50,19 +49,18 @@ class PerformanceTest {
         val pileUpInputs =
             listOf(MULTI_BAM_1_PATH, MULTI_BAM_2_PATH, MULTI_BAM_3_PATH, MULTI_BAM_4_PATH)
                 .map { PileUpInput(it, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START)) }
-        val subPeaksFilename = "multi_test.subPeaks.bed"
+        val peaksFilename = "multi_test.subPeaks.bed"
         val testDir = Files.createTempDirectory("zpeaks_test")
-        val subPeaksOut = testDir.resolve(subPeaksFilename)
+        val peaksOut = testDir.resolve(peaksFilename)
         run(ZPeaksRunConfig(pileUpInputs,
             signalOut = null,
-            peaksOut = null,
-            subPeaksOut = subPeaksOut,
+            peaksOut = peaksOut,
             smoothing = 50.0,
             normalizePDF = false,
             threshold = 6.0,
             fitMode = FitMode.SKEW))
 
-        subPeaksOut.copyToAndDelete(MULTI_BAM_1_PATH.resolveSibling(subPeaksFilename))
+        peaksOut.copyToAndDelete(MULTI_BAM_1_PATH.resolveSibling(peaksFilename))
     }
 
     @Test
@@ -87,15 +85,14 @@ private fun runManyAndAverage(sampleRange: IntRange, fitter: Fitter<*>) {
     val times = mutableSetOf<Long>()
     repeat(25) {
         log.info { "Running $it" }
-        val pdf = pdf(TEST_BAM_CHR, pileUp, 50.0, false, sampleRange)
+        val pdf = pdf(pileUp, 50.0, false, sampleRange)
         val peaks = callChromPeaks(pdf, 6.0)
-        val maxPeak = peaks.maxBy { it.region.end - it.region.start }!!
+        val maxPeak = peaks.maxBy { it.end - it.start }!!
 
-        val peakRegion = maxPeak.region
-        val peakValues = (peakRegion.start..peakRegion.end).map { pdf[it] }
+        val peakValues = (maxPeak.start..maxPeak.end).map { pdf[it] }
 
         val startTime = System.currentTimeMillis()
-        val fits = fitter.fitPeak(peakValues, peakRegion.start)
+        val fits = fitter.fitPeak(peakValues, maxPeak.start)
         errors += fits.map { it.error }.average()
         times += System.currentTimeMillis() - startTime
     }

@@ -2,7 +2,6 @@ package io
 
 import model.Region
 import mu.KotlinLogging
-import step.Peak
 import step.subpeaks.*
 import java.nio.ByteBuffer
 import java.nio.file.*
@@ -11,23 +10,6 @@ import java.util.*
 private val log = KotlinLogging.logger {}
 
 private val Double.printValue: String get() = "%.2f".format(this)
-
-/**
- * Writes part of bed file for given chromosome and peaks
- */
-fun writePeaksBed(path: Path, peaks: Map<String, Iterable<Peak>>) {
-    log.info { "Writing peaks data to bed file $path" }
-    Files.newBufferedWriter(path).use { writer ->
-        for ((chr, chrPeaks) in peaks) {
-            for (peak in chrPeaks) {
-                val region = peak.region
-                val name = bedPeakName(chr, region)
-                writer.write("$chr\t${region.start}\t${region.end}\t$name\t${peak.score.printValue}\n")
-            }
-        }
-    }
-    log.info { "Peaks data write complete!" }
-}
 
 /**
  * Writes part of bed file for given chromosome and sub-peaks

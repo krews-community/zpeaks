@@ -1,6 +1,7 @@
 package util
 
 import java.nio.file.*
+import kotlin.streams.toList
 
 val TEST_BAM_PATH = getResourcePath("ENCFF375IJW.chr22.bam")
 const val TEST_BAM_CHR = "chr22"
@@ -12,6 +13,11 @@ val MULTI_BAM_2_PATH = getResourcePath("ENCFF611PME.chr22_30m-32m.bam")
 val MULTI_BAM_3_PATH = getResourcePath("ENCFF708IUW.chr22_30m-32m.bam")
 val MULTI_BAM_4_PATH = getResourcePath("ENCFF884TCQ.chr22_30m-32m.bam")
 const val MULTI_BAM_CHR = "chr22"
+
+val MANY_BAM_DIR_PATH = getResourcePath("ct_bams")
+val MANY_BAM_PATHS = Files.walk(MANY_BAM_DIR_PATH)
+    .filter { Files.isRegularFile(it) && it.toString().endsWith(".bam") }
+    .toList()
 
 interface Junk
 

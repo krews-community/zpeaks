@@ -14,7 +14,7 @@ import java.util.concurrent.ForkJoinPool
 private val log = KotlinLogging.logger {}
 
 class ZPeaksCommand(val run: (ZPeaksRunConfig) -> Unit = ::run): CliktCommand() {
-    private val samsIn: List<Path> by option("-samIn", help="Input Sam or Bam alignment file")
+    private val bamsIn: List<Path> by option("-bamIn", help="Input Bam alignment file")
         .path(exists = true)
         .multiple()
         .validate { require(it.isNotEmpty()) { "At least one path must be given" } }
@@ -26,7 +26,6 @@ class ZPeaksCommand(val run: (ZPeaksRunConfig) -> Unit = ::run): CliktCommand() 
         .choice(SignalOutputFormat.values().associateBy { it.lowerHyphenName })
         .default(SignalOutputFormat.BED_GRAPH)
     private val peaksOut: Path? by option("-peaksOut", help="Output Peaks bed file").path()
-    private val subPeaksOut: Path? by option("-subPeaksOut", help="Output Sub-Peaks bed file").path()
     private val strands: List<Strand> by option("-strand", help="Strand to count during pile-up")
         .choice(Strand.values().associateBy { it.lowerHyphenName })
         .multiple(listOf(Strand.BOTH))
@@ -59,14 +58,14 @@ class ZPeaksCommand(val run: (ZPeaksRunConfig) -> Unit = ::run): CliktCommand() 
             "Defaults to number of cores on machine. Parallelism is NOT per-chromosome. Any amount is valid.").int()
 
     override fun run() {
-        if (signalOutPath == null && peaksOut == null && subPeaksOut == null)
-            throw Exception("One of the following must be set: -signalOut, -peaksOut, or -subPeaksOut")
+        if (signalOutPath == null && peaksOut == null)
+            throw Exception("One of the following must be set: -signalOut or -peaksOut")
         val signalOut =
             if (signalOutPath != null) SignalOutput(signalOutPath!!, signalOutType, signalOutFormat, signalResolution)
             else null
 
         val pileUpInputs = mutableListOf<PileUpInput>()
-        for ((samIndex, sam) in samsIn.withIndex()) {
+        for ((samIndex, sam) in bamsIn.withIndex()) {
             val strand = strands.getOrElse(samIndex) { strands.last() }
             val pileUpAlgorithm = pileUpAlgorithms.getOrElse(samIndex) { pileUpAlgorithms.last() }
             val forwardShift = forwardShifts.getOrElse(samIndex) { forwardShifts.last() }
@@ -75,7 +74,7 @@ class ZPeaksCommand(val run: (ZPeaksRunConfig) -> Unit = ::run): CliktCommand() 
             pileUpInputs += PileUpInput(sam, pileUpOptions)
         }
 
-        run(ZPeaksRunConfig(pileUpInputs, signalOut, peaksOut, subPeaksOut, smoothing, normalizePDF, threshold, fitMode, parallelism))
+        run(ZPeaksRunConfig(pileUpInputs, signalOut, peaksOut, smoothing, normalizePDF, threshold, fitMode, parallelism))
     }
 }
 
@@ -92,7 +91,6 @@ data class ZPeaksRunConfig(
     val pileUpInputs: List<PileUpInput>,
     val signalOut: SignalOutput?,
     val peaksOut: Path?,
-    val subPeaksOut: Path?,
     val smoothing: Double,
     val normalizePDF: Boolean,
     val threshold: Double,
@@ -106,6 +104,18 @@ fun run(config: ZPeaksRunConfig) = with(config) {
     }
     log.info { "ZPeaks run started with parallelism = ${ForkJoinPool.commonPool().parallelism}" }
 
+    // Run peaks on each bam individually and merge the resulting peaks
+    var mergedPeaks: Map<String, List<Region>>? = null
+    if (pileUpInputs.size > 1) {
+        for (pileUpInput in pileUpInputs) {
+            val pileUps = runPileUp(listOf(pileUpInput))
+            val pdfs = runSmooth(pileUps, smoothing, normalizePDF)
+            val peaks = callPeaks(pdfs, threshold)
+            mergedPeaks = if (mergedPeaks == null) peaks else mergePeaks(mergedPeaks, peaks)
+        }
+    }
+
+    // Run peaks on all the bams piled up together, then merge them
     val pileUps = runPileUp(pileUpInputs)
     if (signalOut != null && signalOut.type == SignalOutputType.RAW) {
         createSignalFile(signalOut.path, signalOut.format, pileUps)
@@ -117,17 +127,15 @@ fun run(config: ZPeaksRunConfig) = with(config) {
     }
 
     val peaks = callPeaks(pdfs, threshold)
-    if (peaksOut != null) {
-        writePeaksBed(peaksOut, peaks)
-    }
+    mergedPeaks = if (mergedPeaks == null) peaks else mergePeaks(mergedPeaks, peaks)
 
-    if (subPeaksOut == null) return
+    if (peaksOut == null) return
     if (fitMode == FitMode.SKEW) {
-        val skewSubPeaks = SkewFitter.fitAll(peaks, pdfs)
-        writeSkewSubPeaksBed(subPeaksOut, skewSubPeaks)
+        val skewSubPeaks = SkewFitter.fitAll(mergedPeaks, pdfs)
+        writeSkewSubPeaksBed(peaksOut, skewSubPeaks)
     } else {
-        val subPeaks = StandardFitter.fitAll(peaks, pdfs)
-        writeStandardSubPeaksBed(subPeaksOut, subPeaks)
+        val subPeaks = StandardFitter.fitAll(mergedPeaks, pdfs)
+        writeStandardSubPeaksBed(peaksOut, subPeaks)
     }
 }
 

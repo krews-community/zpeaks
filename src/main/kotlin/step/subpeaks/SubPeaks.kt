@@ -3,9 +3,8 @@ package step.subpeaks
 import model.*
 import mu.KotlinLogging
 import org.apache.commons.math3.util.FastMath.*
-import step.PDF
-import step.Peak
-import util.runParallel
+import step.*
+import util.*
 import java.util.*
 
 private val log = KotlinLogging.logger {}
@@ -37,7 +36,7 @@ abstract class Fitter<T : GaussianParameters> (private val name: String, val opt
     /**
      * Do all sub-peak fits for all peaks on all chromosomes
      */
-    fun fitAll(peaks: Map<String, List<Peak>>, pdfs: Map<String, PDF>): Map<String, List<SubPeak<T>>> {
+    fun fitAll(peaks: Map<String, List<Region>>, pdfs: Map<String, PDF>): Map<String, List<SubPeak<T>>> {
         log.info { "Running $name for ${peaks.size} chromosomes..." }
         val subPeaks = mutableMapOf<String, List<SubPeak<T>>>()
         for ((chr, chrPeaks) in peaks) {
@@ -50,13 +49,12 @@ abstract class Fitter<T : GaussianParameters> (private val name: String, val opt
     /**
      * Do sub-peak fits for all peaks on a single chromosome
      */
-    fun fitChrom(chr: String, peaks: List<Peak>, pdf: PDF): List<SubPeak<T>> {
-        (peaks as MutableList).sortByDescending { it.region.end - it.region.start }
+    fun fitChrom(chr: String, peaks: List<Region>, pdf: PDF): List<SubPeak<T>> {
+        (peaks as MutableList).sortByDescending { it.end - it.start }
         val subPeaks = Collections.synchronizedList(mutableListOf<SubPeak<T>>())
         runParallel("$name on $chr", "peaks", peaks) { peak ->
-            val region = peak.region
-            val peakValues = (region.start..region.end).map { pdf[it] }
-            subPeaks += fitPeak(peakValues, region.start).flatMap { fit ->
+            val peakValues = (peak.start..peak.end).map { pdf[it] }
+            subPeaks += fitPeak(peakValues, peak.start).flatMap { fit ->
                 fit.subPeaks
             }
         }

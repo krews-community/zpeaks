@@ -15,7 +15,6 @@ class CliTests {
         val testDir = Files.createTempDirectory("zpeaks_test")
         val signalOut = testDir.resolve("testSignalOut.bed")
         val peaksOut = testDir.resolve("testPeaksOut.bed")
-        val subPeaksOut = testDir.resolve("testSubPeaksOut.bed")
 
         val mockRun = spyk<(ZPeaksRunConfig) -> Unit>()
         val args =
@@ -23,7 +22,7 @@ class CliTests {
             -samIn=$MULTI_BAM_1_PATH -strand=both -pileUpAlgorithm=start -forwardShift=5 -reverseShift=10
             -samIn=$MULTI_BAM_2_PATH -strand=plus -pileUpAlgorithm=length -forwardShift=-5 -reverseShift=15
             -signalOut=$signalOut -signalOutType=raw -signalOutFormat=wig -signalResolution=2
-            -peaksOut=$peaksOut -subPeaksOut=$subPeaksOut
+            -peaksOut=$peaksOut
             -smoothingFactor=60.0 -threshold=7.0 -normalizePdf
             -parallelism=4
             """.trimIndent().split("\\s+".toRegex())
@@ -36,7 +35,6 @@ class CliTests {
             ),
             signalOut = SignalOutput(signalOut, SignalOutputType.RAW, SignalOutputFormat.WIG, signalResolution = 2),
             peaksOut = peaksOut,
-            subPeaksOut = subPeaksOut,
             smoothing = 60.0,
             normalizePDF = true,
             threshold = 7.0,

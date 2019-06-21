@@ -24,11 +24,12 @@ const val LENGTH_LIMIT = 100_000
 class PileUp(
     // Pile-up values in chromosome.
     private val values: IntArray,
+    val chr: String,
     // chromosome length pulled directly from BAM File
     override val chrLength: Int,
     // Sum of all pile-up values in chromosome calculated on the fly and cached for efficiency
-    val sum: Int
-): SignalData {
+    val sum: Long
+) : SignalData {
     override operator fun get(bp: Int): Int = values[bp]
 }
 
@@ -45,93 +46,52 @@ data class PileUpOptions(
     val reverseShift: Int = 0
 )
 
-data class PileUpInput(val sam: Path, val options: PileUpOptions)
-
-fun runPileUp(sam: Path, options: PileUpOptions) = runPileUp(listOf(PileUpInput(sam, options)))
+data class PileUpInput(val bam: Path, val options: PileUpOptions)
 
 /**
  * Reads a SAM or BAM file and creates a pile-up representation in memory.
- * @param inputs: Alignment files with options for adding pile-up data for each.
+ *
  * @return the in-memory pile-up
  */
-fun runPileUp(inputs: List<PileUpInput>): MutableMap<String, PileUp> {
-    log.info { "Performing pile-up for ${inputs.size} alignment files" }
-    val values = mutableMapOf<String, IntArray>()
-    val sums = mutableMapOf<String, Int>()
+fun runPileUp(bam: Path, chr: String, chrLength: Int, options: PileUpOptions): PileUp {
+    log.info { "Performing pile-up for chromosome $chr on alignment $bam..." }
+    val values = IntArray(chrLength) { 0 }
+    var sum = 0L
+    SamReaderFactory.make().open(bam).use { reader ->
+        reader.query(chr, 0, 0, false).forEach { record ->
+            // If we're only using plus strand values and this record is a plus strand and
+            // visa versa for minus strand, continue.
+            if ((options.strand == Strand.PLUS && record.readNegativeStrandFlag) ||
+                (options.strand == Strand.MINUS && !record.readNegativeStrandFlag)
+            ) return@forEach
 
-    for ((sam, options) in inputs) {
-        log.info {
-            "Piling up data from $sam with options: strand=${options.strand}, " +
-                    "pileUpAlgorithm=${options.pileUpAlgorithm}, " +
-                    "forwardShift=${options.forwardShift}, reverseShift=${options.reverseShift}"
-        }
-        val samReader = SamReaderFactory.make().open(sam)
-        val chromosomeLengths: Map<String, Int> = samReader.fileHeader.sequenceDictionary.sequences
-            .map { it.sequenceName to it.sequenceLength }.toMap()
-
-        // use block to auto-close
-        samReader.use { reader ->
-            reader.forEach { record ->
-                // If we're only using plus strand values and this record is a plus strand and
-                // visa versa for minus strand, continue.
-                if ((options.strand == Strand.PLUS && record.readNegativeStrandFlag) ||
-                    (options.strand == Strand.MINUS && !record.readNegativeStrandFlag)
-                ) return@forEach
-
-                // Chromosome name / key
-                val chr = record.referenceName
-                val chrLength = chromosomeLengths.getValue(chr)
-
-                val existing = values[chr]
-                if (existing == null) {
-                    values[chr] = IntArray(chrLength) { 0 }
-                } else if (chrLength > existing.size) {
-                    log.warn { "Chromosome length has changed between alignment files!" }
-                    values[chr] = IntArray(chrLength) { index -> existing[index] }
+            val start = pileUpStart(record, chrLength, options.forwardShift, options.reverseShift)
+            when (options.pileUpAlgorithm) {
+                PileUpAlgorithm.START -> {
+                    values[start]++
+                    sum++
                 }
-                sums.putIfAbsent(chr, 0)
-
-                val chrValues = values.getValue(chr)
-                val start = pileUpStart(record, chrLength, options.forwardShift, options.reverseShift)
-                when (options.pileUpAlgorithm) {
-                    PileUpAlgorithm.START -> {
-                        chrValues[start]++
-                        sums[chr] = sums.getValue(chr) + 1
+                PileUpAlgorithm.MID_POINT -> {
+                    val end = pileUpEnd(record, chrLength, options.forwardShift, options.reverseShift)
+                    val midPoint = (start + end) / 2
+                    values[midPoint]++
+                    sum++
+                }
+                PileUpAlgorithm.LENGTH -> {
+                    val end = pileUpEnd(record, chrLength, options.forwardShift, options.reverseShift)
+                    val length = end - start
+                    if (length > LENGTH_LIMIT) return@forEach
+                    for (i in start until end) {
+                        values[i]++
                     }
-                    PileUpAlgorithm.MID_POINT -> {
-                        val end = pileUpEnd(record, chrLength, options.forwardShift, options.reverseShift)
-                        val midPoint = (start + end) / 2
-                        chrValues[midPoint]++
-                        sums[chr] = sums.getValue(chr) + 1
-                    }
-                    PileUpAlgorithm.LENGTH -> {
-                        val end = pileUpEnd(record, chrLength, options.forwardShift, options.reverseShift)
-                        val length = end - start
-                        if (length > LENGTH_LIMIT) return@forEach
-                        for (i in start until end) {
-                            chrValues[i]++
-                        }
-                        sums[chr] = sums.getValue(chr) + length
-                    }
+                    sum += length
                 }
             }
         }
     }
 
-    val pileUps = values.keys.map { chr ->
-        chr to PileUp(
-            chrLength = values.getValue(chr).size,
-            values = values.getValue(chr),
-            sum = sums.getValue(chr)
-        )
-    }.toMap().toMutableMap()
-
-    val pileUpSummary = pileUps.entries.joinToString("\n") {
-        "chromosome ${it.key}: len=${it.value.chrLength} sum=${it.value.sum}"
-    }
-    log.info { "Pile-up complete with results: \n$pileUpSummary" }
-
-    return pileUps
+    log.info { "Pile-up complete with sum $sum" }
+    return PileUp(values, chr, chrLength, sum)
 }
 
 /**
