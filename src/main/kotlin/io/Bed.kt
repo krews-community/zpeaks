@@ -14,34 +14,30 @@ private val Double.printValue: String get() = "%.2f".format(this)
 /**
  * Writes part of bed file for given chromosome and sub-peaks
  */
-fun writeSkewSubPeaksBed(path: Path, subPeaks: Map<String, Iterable<SubPeak<SkewGaussianParameters>>>) {
-    log.info { "Writing skew sub-peaks data to bed file $path" }
+fun writeSkewSubPeaksBed(path: Path, chr: String, subPeaks: Iterable<SubPeak<SkewGaussianParameters>>) {
+    log.info { "Writing skew sub-peaks data for $chr to bed file $path" }
     Files.newBufferedWriter(path).use { writer ->
-        for ((chr, chrSubPeaks) in subPeaks) {
-            for (subPeak in chrSubPeaks) {
-                val region = subPeak.region
-                val name = bedPeakName(chr, region)
-                val amplitude = subPeak.gaussianParameters.amplitude
-                val shape = subPeak.gaussianParameters.shape
-                val score = "${amplitude.printValue}#${shape.printValue}"
-                writer.write("$chr\t${region.start}\t${region.end}\t$name\t$score\n")
-            }
+        for (subPeak in subPeaks) {
+            val region = subPeak.region
+            val name = bedPeakName(chr, region)
+            val amplitude = subPeak.gaussianParameters.amplitude
+            val shape = subPeak.gaussianParameters.shape
+            val score = "${amplitude.printValue}#${shape.printValue}"
+            writer.write("$chr\t${region.start}\t${region.end}\t$name\t$score\n")
         }
     }
     log.info { "Skew sub-peaks data write complete!" }
 }
 
-fun writeStandardSubPeaksBed(path: Path, subPeaks: Map<String, Iterable<SubPeak<StandardGaussianParameters>>>) {
-    log.info { "Writing Standard Sub-Peaks data to bed file $path" }
+fun writeStandardSubPeaksBed(path: Path, chr: String, subPeaks: Iterable<SubPeak<StandardGaussianParameters>>) {
+    log.info { "Writing Standard Sub-Peaks data for $chr to bed file $path" }
     Files.newBufferedWriter(path).use { writer ->
-        for ((chr, chrSubPeaks) in subPeaks) {
-            for (subPeak in chrSubPeaks) {
-                val region = subPeak.region
-                val name = bedPeakName(chr, region)
-                val amplitude = subPeak.gaussianParameters.amplitude
-                val score = amplitude.printValue
-                writer.write("$chr\t${region.start}\t${region.end}\t$name\t$score\n")
-            }
+        for (subPeak in subPeaks) {
+            val region = subPeak.region
+            val name = bedPeakName(chr, region)
+            val amplitude = subPeak.gaussianParameters.amplitude
+            val score = amplitude.printValue
+            writer.write("$chr\t${region.start}\t${region.end}\t$name\t$score\n")
         }
     }
     log.info { "Standard Sub-Peaks data write complete!" }

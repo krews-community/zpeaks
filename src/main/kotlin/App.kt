@@ -5,7 +5,6 @@ import io.*
 import model.*
 import mu.KotlinLogging
 import step.*
-import step.subpeaks.*
 import util.*
 import java.nio.file.Path
 import java.util.concurrent.ForkJoinPool
@@ -104,6 +103,7 @@ fun run(config: ZPeaksRunConfig) = with(config) {
     }
     log.info { "ZPeaks run started with parallelism = ${ForkJoinPool.commonPool().parallelism}" }
 
+    /*
     // Run peaks on each bam individually and merge the resulting peaks
     var mergedPeaks: Map<String, List<Region>>? = null
     if (pileUpInputs.size > 1) {
@@ -137,6 +137,7 @@ fun run(config: ZPeaksRunConfig) = with(config) {
         val subPeaks = StandardFitter.fitAll(mergedPeaks, pdfs)
         writeStandardSubPeaksBed(peaksOut, subPeaks)
     }
+     */
 }
 
 fun main(args: Array<String>) = ZPeaksCommand().main(args)

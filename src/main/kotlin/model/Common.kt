@@ -1,5 +1,8 @@
 package model
 
+import step.PileUpOptions
+import java.nio.file.Path
+
 enum class Strand {
     PLUS, MINUS, BOTH
 }
@@ -10,3 +13,5 @@ interface SignalData {
     val chrLength: Int
     operator fun get(bp: Int): Number
 }
+
+data class PileUpInput(val bam: Path, val options: PileUpOptions)

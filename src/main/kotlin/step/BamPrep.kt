@@ -1,7 +1,10 @@
 package step
 
 import htsjdk.samtools.*
+import mu.KotlinLogging
 import java.nio.file.Path
+
+private val log = KotlinLogging.logger {}
 
 /**
  * Check each bam for the existence of an index. If it does not exist, it will be created.
@@ -12,6 +15,7 @@ import java.nio.file.Path
  * @returns a list of chromosomes with max lengths (The highest length given in a bam per chromosome)
  */
 fun prepBams(bams: List<Path>, chrFilter: List<String>?): Map<String, Int> {
+    log.info { "Collecting chromosome metadata and checking BAMs for indexes..." }
     val chrLengths = mutableMapOf<String, Int>()
     for(bam in bams) {
         val samReader = SamReaderFactory.makeDefault()
@@ -19,6 +23,7 @@ fun prepBams(bams: List<Path>, chrFilter: List<String>?): Map<String, Int> {
             .open(bam)
         samReader.use { reader ->
             if (SamFiles.findIndex(bam) == null) {
+                log.info { "Index not found for ${bam.fileName}. Creating..." }
                 BAMIndexer.createIndex(reader, bam.resolveSibling("${bam.fileName}.bai"))
             }
             for(sequence in reader.fileHeader.sequenceDictionary.sequences) {
@@ -31,5 +36,6 @@ fun prepBams(bams: List<Path>, chrFilter: List<String>?): Map<String, Int> {
             }
         }
     }
+    log.info { "BAM prep complete!" }
     return chrLengths
 }

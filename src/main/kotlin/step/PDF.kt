@@ -14,33 +14,11 @@ const val BACKGROUND_LIMIT = 1000
 data class Background(val average: Double, val stdDev: Double)
 
 class PDF(
-    private val values: FloatArray,
+    private val values: DoubleArray,
     val background: Background,
     override val chrLength: Int
 ): SignalData {
-    override operator fun get(bp: Int): Double = values[bp].toDouble()
-}
-
-fun runSmooth(pileUps: MutableMap<String, PileUp>, smoothing: Double, normalizePDF: Boolean): Map<String, PDF> {
-    log.info { "Performing smoothing of raw pile up data for ${pileUps.size} chromosomes..." }
-    val pdfs = mutableMapOf<String, PDF>()
-    val pileUpIter = pileUps.iterator()
-    for ((chr, pileUp) in pileUpIter) {
-        log.info { "Calculating PDF for chromosome $chr pileup data..." }
-        val pdf = pdf(pileUp, smoothing, normalizePDF)
-        log.info { "Chromosome $chr PDF completed with background ${pdf.background}" }
-
-        // Remove pile-up data so it can be garbage collected and memory can be reclaimed.
-        pileUpIter.remove()
-
-        if (0.0 == pdf.background.average || 0.0 == pdf.background.stdDev) {
-            log.warn { "One or more background parameters for chromosome $chr was zero. skipping..." }
-            continue
-        }
-        pdfs[chr] = pdf
-    }
-    log.info { "Smoothing complete!" }
-    return pdfs
+    override operator fun get(bp: Int): Double = values[bp]
 }
 
 /**
@@ -61,7 +39,7 @@ fun pdf(pileUp: PileUp, bandwidth: Double, normalizePDF: Boolean,
         IntStream.range(start, end).parallel().forEach { chrIndex ->
             tracker.incrementAndGet()
             val pileUpValue = pileUp[chrIndex]
-            if (pileUpValue == 0) return@forEach
+            if (pileUpValue == 0.0) return@forEach
             pdfValues.addAndGet(chrIndex, pileUpValue * lookupTable[0])
             for (i in 1 until windowSize) {
                 if (chrIndex + i < pileUp.chrLength) {
@@ -75,10 +53,8 @@ fun pdf(pileUp: PileUp, bandwidth: Double, normalizePDF: Boolean,
     }
 
     val background = background(lookupTable, pileUp.sum, windowSize, subsetSize?: pileUp.chrLength)
-    // Store as regular DoubleArray after calculating PDF because they're smaller.
-    val floatPileUp = FloatArray(pileUp.chrLength)
-    for (i in 0 until pileUp.chrLength) floatPileUp[i] = pdfValues[i].toFloat()
-    return PDF(floatPileUp, background, pileUp.chrLength)
+    val valuesDA = DoubleArray(pileUp.chrLength) { pdfValues[it] }
+    return PDF(valuesDA, background, pileUp.chrLength)
 }
 
 private fun windowSize(bandwidth: Double): Int {
@@ -91,7 +67,7 @@ private fun windowSize(bandwidth: Double): Int {
  * each repeat, we compute the PDF at the center; at high numbers of repeats, the
  * distribution of PDFs should be near normal.
  */
-private fun background(lookupTable: List<Double>, numBins: Long, windowSize: Int, chrLength: Int): Background {
+private fun background(lookupTable: List<Double>, numBins: Double, windowSize: Int, chrLength: Int): Background {
 
     val averageN = numBins * windowSize / chrLength.toFloat()
     val backgroundDist = mutableListOf<Double>()
@@ -119,7 +95,7 @@ private fun background(lookupTable: List<Double>, numBins: Long, windowSize: Int
     return Background(average, stdDev)
 }
 
-private fun lookupTable(normalizePDF: Boolean, windowSize: Int, bandwidth: Double, n: Long): List<Double> {
+private fun lookupTable(normalizePDF: Boolean, windowSize: Int, bandwidth: Double, n: Double): List<Double> {
     val lookupTable = if (windowSize > 0) {
         val a = if (!normalizePDF) 1.0 else 1.0 / bandwidth / SQRT2PI
         gaussianDistribution(a, 0.0, bandwidth, windowSize)

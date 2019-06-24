@@ -4,6 +4,7 @@ import htsjdk.samtools.*
 import model.*
 import mu.KotlinLogging
 import java.nio.file.Path
+import kotlin.math.sqrt
 
 
 private val log = KotlinLogging.logger {}
@@ -23,14 +24,18 @@ const val LENGTH_LIMIT = 100_000
 
 class PileUp(
     // Pile-up values in chromosome.
-    private val values: IntArray,
+    private val values: DoubleArray,
+    // Chromosome as named in alignment file
     val chr: String,
-    // chromosome length pulled directly from BAM File
+    // Chromosome length pulled directly from BAM File
     override val chrLength: Int,
     // Sum of all pile-up values in chromosome calculated on the fly and cached for efficiency
-    val sum: Long
+    val sum: Double
 ) : SignalData {
-    override operator fun get(bp: Int): Int = values[bp]
+    private val scalingFactor: Double = sqrt(sum)
+    fun scaledValue(bp: Int): Double = values[bp] / scalingFactor
+
+    override operator fun get(bp: Int): Double = values[bp]
 }
 
 /**
@@ -46,8 +51,6 @@ data class PileUpOptions(
     val reverseShift: Int = 0
 )
 
-data class PileUpInput(val bam: Path, val options: PileUpOptions)
-
 /**
  * Reads a SAM or BAM file and creates a pile-up representation in memory.
  *
@@ -55,7 +58,7 @@ data class PileUpInput(val bam: Path, val options: PileUpOptions)
  */
 fun runPileUp(bam: Path, chr: String, chrLength: Int, options: PileUpOptions): PileUp {
     log.info { "Performing pile-up for chromosome $chr on alignment $bam..." }
-    val values = IntArray(chrLength) { 0 }
+    val values = DoubleArray(chrLength) { 0.0 }
     var sum = 0L
     SamReaderFactory.make().open(bam).use { reader ->
         reader.query(chr, 0, 0, false).forEach { record ->
@@ -91,7 +94,7 @@ fun runPileUp(bam: Path, chr: String, chrLength: Int, options: PileUpOptions): P
     }
 
     log.info { "Pile-up complete with sum $sum" }
-    return PileUp(values, chr, chrLength, sum)
+    return PileUp(values, chr, chrLength, sum.toDouble())
 }
 
 /**
