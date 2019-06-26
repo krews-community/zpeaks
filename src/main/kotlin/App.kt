@@ -3,20 +3,27 @@ import com.github.ajalt.clikt.parameters.options.*
 import com.github.ajalt.clikt.parameters.types.*
 import io.*
 import model.*
-import mu.KotlinLogging
+import runner.ZRunConfig
 import step.*
 import util.*
+import runner.*
+import java.nio.file.Files
 import java.nio.file.Path
-import java.util.concurrent.ForkJoinPool
+import kotlin.streams.toList
 
 
-private val log = KotlinLogging.logger {}
-
-class ZPeaksCommand(val run: (ZPeaksRunConfig) -> Unit = ::run): CliktCommand() {
+class ZPeaksCommand(val run: (RunType, ZRunConfig) -> Unit = ::run): CliktCommand() {
+    private val runType: RunType by option("-runType",
+        help="Type of run. Relates to the way data from bam files are aggregated.")
+        .choice(RunType.values().associateBy { it.lowerHyphenName })
+        .default(RunType.BOTTOM_UP)
     private val bamsIn: List<Path> by option("-bamIn", help="Input Bam alignment file")
         .path(exists = true)
         .multiple()
         .validate { require(it.isNotEmpty()) { "At least one path must be given" } }
+    private val chrFilter: Path? by option("-chrFilter", help="Chromosome Filter file. An optional new-line " +
+            "delimited file containing the chromosome that we will analyze. Others will be ignored.")
+        .path(exists = true)
     private val signalOutPath: Path? by option("-signalOut", help="Output Pile-Up file").path()
     private val signalOutType: SignalOutputType by option("-signalOutType")
         .choice(SignalOutputType.values().associateBy { it.lowerHyphenName })
@@ -73,71 +80,22 @@ class ZPeaksCommand(val run: (ZPeaksRunConfig) -> Unit = ::run): CliktCommand() 
             pileUpInputs += PileUpInput(sam, pileUpOptions)
         }
 
-        run(ZPeaksRunConfig(pileUpInputs, signalOut, peaksOut, smoothing, normalizePDF, threshold, fitMode, parallelism))
+        val chrFilterList = Files.newBufferedReader(chrFilter).lines().toList()
+        val runConfig = ZRunConfig(pileUpInputs, chrFilterList, signalOut, peaksOut, smoothing, normalizePDF,
+            threshold, fitMode, parallelism)
+        run(runType, runConfig)
     }
 }
 
-enum class FitMode { SKEW, STANDARD }
-data class SignalOutput(
-    val path: Path,
-    val type: SignalOutputType,
-    val format: SignalOutputFormat,
-    val signalResolution: Int = 1
-)
-enum class SignalOutputType { RAW, SMOOTHED }
+enum class RunType { TOP_DOWN, BOTTOM_UP }
 
-data class ZPeaksRunConfig(
-    val pileUpInputs: List<PileUpInput>,
-    val signalOut: SignalOutput?,
-    val peaksOut: Path?,
-    val smoothing: Double,
-    val normalizePDF: Boolean,
-    val threshold: Double,
-    val fitMode: FitMode = FitMode.SKEW,
-    val parallelism: Int? = null
-)
-
-fun run(config: ZPeaksRunConfig) = with(config) {
-    if (parallelism != null) {
-        System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", parallelism.toString())
+fun run(runType: RunType, config: ZRunConfig) {
+    val runner = when {
+        config.pileUpInputs.size == 1 -> SingleFileZRunner(config)
+        runType == RunType.BOTTOM_UP -> BottomUpZRunner(config)
+        else -> TopDownZRunner(config)
     }
-    log.info { "ZPeaks run started with parallelism = ${ForkJoinPool.commonPool().parallelism}" }
-
-    /*
-    // Run peaks on each bam individually and merge the resulting peaks
-    var mergedPeaks: Map<String, List<Region>>? = null
-    if (pileUpInputs.size > 1) {
-        for (pileUpInput in pileUpInputs) {
-            val pileUps = runPileUp(listOf(pileUpInput))
-            val pdfs = runSmooth(pileUps, smoothing, normalizePDF)
-            val peaks = callPeaks(pdfs, threshold)
-            mergedPeaks = if (mergedPeaks == null) peaks else mergePeaks(mergedPeaks, peaks)
-        }
-    }
-
-    // Run peaks on all the bams piled up together, then merge them
-    val pileUps = runPileUp(pileUpInputs)
-    if (signalOut != null && signalOut.type == SignalOutputType.RAW) {
-        createSignalFile(signalOut.path, signalOut.format, pileUps)
-    }
-
-    val pdfs = runSmooth(pileUps, smoothing, normalizePDF)
-    if (signalOut != null && signalOut.type == SignalOutputType.SMOOTHED) {
-        createSignalFile(signalOut.path, signalOut.format, pdfs, signalOut.signalResolution)
-    }
-
-    val peaks = callPeaks(pdfs, threshold)
-    mergedPeaks = if (mergedPeaks == null) peaks else mergePeaks(mergedPeaks, peaks)
-
-    if (peaksOut == null) return
-    if (fitMode == FitMode.SKEW) {
-        val skewSubPeaks = SkewFitter.fitAll(mergedPeaks, pdfs)
-        writeSkewSubPeaksBed(peaksOut, skewSubPeaks)
-    } else {
-        val subPeaks = StandardFitter.fitAll(mergedPeaks, pdfs)
-        writeStandardSubPeaksBed(peaksOut, subPeaks)
-    }
-     */
+    runner.run()
 }
 
 fun main(args: Array<String>) = ZPeaksCommand().main(args)

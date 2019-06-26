@@ -7,6 +7,8 @@ import step.subpeaks.*
 import util.*
 import io.*
 import model.*
+import runner.SingleFileZRunner
+import runner.ZRunConfig
 
 private val log = KotlinLogging.logger {}
 
@@ -18,13 +20,14 @@ class AppTests {
         val testDir = Files.createTempDirectory("zpeaks_test")
         var peaksOut = testDir.resolve(peaksFilename)
 
-        val pileUp = runPileUp(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))
-            .getValue(TEST_BAM_CHR)
+        val runConfig = ZRunConfig(listOf(PileUpInput(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))))
+        val zRunner = SingleFileZRunner(runConfig)
+        val pileUp = zRunner.pileUp(CHR_22, CHR_22_SIZE)
 
-        val pdf = pdf(pileUp, 50.0, false, 10_000_000 .. 15_000_000)
-        val peaks = callChromPeaks(pdf, 6.0)
-        val subPeaks = SkewFitter.fitChrom(TEST_BAM_CHR, peaks, pdf)
-        writeSkewSubPeaksBed(peaksOut, mapOf(TEST_BAM_CHR to subPeaks))
+        val pdf = zRunner.pdf(pileUp,10_000_000 .. 15_000_000)
+        val peaks = zRunner.peaks(pdf)
+        val subPeaks = SkewFitter.fit(CHR_22, peaks, pdf)
+        writeSkewSubPeaksBed(peaksOut, CHR_22, subPeaks)
 
         peaksOut = peaksOut.copyToAndDelete(TEST_BAM_PATH.resolveSibling(peaksFilename))
 

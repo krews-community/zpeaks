@@ -6,6 +6,7 @@ import step.*
 import util.*
 import org.knowm.xchart.style.lines.SeriesLines
 import org.knowm.xchart.style.markers.SeriesMarkers
+import runner.*
 import step.subpeaks.*
 import java.awt.Color
 import kotlin.math.min
@@ -27,63 +28,83 @@ class Plot {
     fun stop() = Thread.sleep(Long.MAX_VALUE)
 
     @Test
-    fun `Plot Single Alignment PDF`() = plotPdf(singleFilePileUp(), 20_890_000 until 20_910_000)
+    fun `Plot Single Alignment PDF`() = plotPdf(SingleFileZRunner(singleFileConfig()), CHR_22, CHR_22_SIZE,
+        20_890_000 until 20_910_000)
 
     @Test
-    fun `Plot Multi Alignment PDF`() = plotPdf(multiFilePileUp(), 30_000_000 until 30_025_000, 2_000_000)
+    fun `Plot Multi Alignment Bottom-Up PDF`() = plotPdf(BottomUpZRunner(multiFileConfig()), CHR_22, CHR_22_SIZE,
+        30_000_000 until 30_025_000, 2_000_000)
 
     @Test
-    fun `Plot Big Multi Alignment PDF`() = plotPdf(bigMultiFilePileUp(), 30_000_000 until 30_025_000, 500_000)
+    fun `Plot Big Multi Alignment Bottom-Up PDF`() = plotPdf(BottomUpZRunner(bigMultiFileConfig()), CHR_22, CHR_22_SIZE,
+        30_000_000 until 30_025_000, 500_000)
 
     @Test
-    fun `Plot Big Multi Alignment Merged Peaks`() =
-        plotMergedPeaks(bigMultiFilePileUpInputs(), MULTI_BAM_CHR, 30_010_000 until 30_017_000, 500_000)
+    fun `Plot Big Multi Alignment Bottom-Up PDF Zoomed-In`() = plotPdf(BottomUpZRunner(bigMultiFileConfig()), CHR_22, CHR_22_SIZE,
+        30_010_000 until 30_017_000, 500_000)
+
+    @Test
+    fun `Plot Big Multi Alignment Top-Down PDF`() = plotPdf(TopDownZRunner(bigMultiFileConfig()), CHR_22, CHR_22_SIZE,
+            30_000_000 until 30_025_000, 500_000)
+
+    @Test
+    fun `Plot Big Multi Alignment Top-Down PDF Zoomed-In`() = plotPdf(TopDownZRunner(bigMultiFileConfig()), CHR_22, CHR_22_SIZE,
+        30_010_000 until 30_017_000, 500_000)
+
+    @Test
+    fun `Plot Skew Sub-Peaks`() = plotSubPeaks(SingleFileZRunner(singleFileConfig()), CHR_22, CHR_22_SIZE, SkewFitter,
+        SAMPLE_RANGE_LARGEST)
+
+    @Test
+    fun `Plot Standard Sub-Peaks`() = plotSubPeaks(SingleFileZRunner(singleFileConfig()), CHR_22, CHR_22_SIZE, StandardFitter,
+        SAMPLE_RANGE_LARGEST)
 
     @Test
     fun `Plot Skew Sub-Peaks from Multiple Alignments`() =
-        plotSubPeaks(multiFilePileUp(), 30_000_000 until 30_400_000, SkewFitter, 2_000_000)
+        plotSubPeaks(BottomUpZRunner(multiFileConfig()), CHR_22, CHR_22_SIZE, SkewFitter,
+            30_000_000 until 30_400_000, 2_000_000)
 
     @Test
-    fun `Plot Skew Sub-Peaks from Many Alignments`() =
-        plotSubPeaks(bigMultiFilePileUp(), 30_000_000 until 30_400_000, SkewFitter, 500_000)
+    fun `Plot Skew Sub-Peaks from Multiple Alignments - Top Down`() =
+        plotSubPeaks(TopDownZRunner(multiFileConfig()), CHR_22, CHR_22_SIZE, SkewFitter,
+            30_000_000 until 30_400_000, 2_000_000)
 
     @Test
-    fun `Plot Skew Sub-Peaks`() = plotSubPeaks(singleFilePileUp(), SAMPLE_RANGE_LARGEST, SkewFitter)
-
-    @Test
-    fun `Plot Standard Sub-Peaks`() = plotSubPeaks(singleFilePileUp(), SAMPLE_RANGE_LARGEST, StandardFitter)
-
+    fun `Plot Skew Sub-Peaks from Many Alignments - Top Down`() =
+        plotSubPeaks(TopDownZRunner(bigMultiFileConfig()), CHR_22, CHR_22_SIZE, SkewFitter,
+            30_000_000 until 30_400_000, 500_000)
 }
 
-private fun singleFilePileUp() = runPileUp(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))
-    .getValue(TEST_BAM_CHR)
+private fun simpleZRunConfig(pileUpInputs: List<PileUpInput>) = ZRunConfig(
+    pileUpInputs.toList(), null, null, null, 50.0, false, 6.0)
 
-private fun multiFilePileUp() = runPileUp(listOf(MULTI_BAM_1_PATH, MULTI_BAM_2_PATH, MULTI_BAM_3_PATH, MULTI_BAM_4_PATH)
-    .map { PileUpInput(it, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START)) }).getValue(MULTI_BAM_CHR)
+private fun singleFileConfig() = simpleZRunConfig(listOf(PileUpInput(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))))
 
-private fun bigMultiFilePileUpInputs() = MANY_BAM_PATHS
-    .map { PileUpInput(it, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START)) }
+private fun multiFileConfig() = simpleZRunConfig(
+    listOf(MULTI_BAM_1_PATH, MULTI_BAM_2_PATH, MULTI_BAM_3_PATH, MULTI_BAM_4_PATH)
+        .map { PileUpInput(it, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START)) }
+)
 
-private fun bigMultiFilePileUp() = runPileUp(bigMultiFilePileUpInputs()).getValue(MULTI_BAM_CHR)
+private fun bigMultiFileConfig() = simpleZRunConfig(
+    MANY_BAM_PATHS.map { PileUpInput(it, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START)) }
+)
 
-private fun plotPdf(pileUp: PileUp, sampleRange: IntRange, subsetSize: Int? = null, mergeInPeaks: List<Region>? = null) {
+private fun plotPdf(zRunner: ZRunner, chr: String, chrLength: Int, sampleRange: IntRange, subsetSize: Int? = null) {
     val displayRange = sampleRange withNSteps 1000
 
+    zRunner.prepBams()
+    val pileUp = zRunner.pileUp(chr, chrLength, sampleRange, subsetSize)
     val bpUnits = BPUnits.MBP
-    val pileUpChartData = bpData(displayRange, bpUnits) {
-        pileUp[it].toDouble()
-    }
+    val pileUpChartData = bpData(displayRange, bpUnits) { pileUp[it] }
     val pileUpChart = xyAreaChart("Pile Up", bpUnits, pileUpChartData)
 
-    val pdf = pdf(pileUp, 50.0, false, sampleRange, subsetSize)
+    val pdf = zRunner.pdf(pileUp, sampleRange, subsetSize)
     val pdfChartData = bpData(displayRange, bpUnits) {
         (pdf[it] - pdf.background.average) / pdf.background.stdDev
     }
     val pdfChart = xyAreaChart("PDF (in Standard Deviations from Avg)", bpUnits, pdfChartData)
 
-    val threshold = 6.0
-    var peaks = callChromPeaks(pdf, threshold)
-    if (mergeInPeaks != null) peaks = mergePeaks(peaks, mergeInPeaks)
+    val peaks = zRunner.peaks(pdf)
     val peaksChartData = regionsData(peaks, displayRange, bpUnits,
         pdfChartData.yValues.min()!!, pdfChartData.yValues.max()!!)
 
@@ -96,27 +117,12 @@ private fun plotPdf(pileUp: PileUp, sampleRange: IntRange, subsetSize: Int? = nu
     SwingWrapper(listOf(pileUpChart, pdfChart)).displayChartMatrix()
 }
 
-private fun plotMergedPeaks(pileUpInputs: List<PileUpInput>, chr: String, sampleRange: IntRange, subsetSize: Int? = null) {
-    val bandwidth = 50.0
-    val threshold = 6.0
-
-    // Run peaks on each bam individually and merge the resulting peaks
-    var mergedPeaks: List<Region>? = null
-    for (pileUpInput in pileUpInputs) {
-        val pileUp = runPileUp(listOf(pileUpInput)).getValue(chr)
-        val pdf = pdf(pileUp, bandwidth, false, sampleRange, subsetSize)
-        val peaks = callChromPeaks(pdf, threshold)
-        mergedPeaks = if (mergedPeaks == null) peaks else mergePeaks(mergedPeaks, peaks)
-    }
-
-    val pileUp = runPileUp(pileUpInputs).getValue(chr)
-    plotPdf(pileUp, sampleRange, subsetSize, mergedPeaks)
-}
-
-private fun <T : GaussianParameters> plotSubPeaks(pileUp: PileUp, sampleRange: IntRange, fitter: Fitter<T>, subsetSize: Int? = null) {
-
-    val pdf = pdf(pileUp, 50.0, false, sampleRange, subsetSize)
-    val peaks = callChromPeaks(pdf, 6.0)
+private fun <T : GaussianParameters> plotSubPeaks(zRunner: ZRunner, chr: String, chrLength: Int,
+                                                  fitter: Fitter<T>, sampleRange: IntRange, subsetSize: Int? = null) {
+    zRunner.prepBams()
+    val pileUp = zRunner.pileUp(chr, chrLength, sampleRange, subsetSize)
+    val pdf = zRunner.pdf(pileUp, sampleRange, subsetSize)
+    val peaks = zRunner.peaks(pdf)
     val maxPeak = peaks.maxBy { it.end - it.start }
     log.info { "Max Peak: $maxPeak" }
 
@@ -192,10 +198,12 @@ fun regionsData(regions: List<Region>, range: IntProgression, bpUnits: BPUnits, 
     points += range.first / bpUnits.bpPerUnit.toDouble() to offValue
     points += range.last / bpUnits.bpPerUnit.toDouble() to offValue
 
-    val regionsInRange = regions.filter { it.start >= range.first && it.end <= range.last }
+    val regionsInRange = regions.filter { it.end >= range.first || it.start <= range.last }
     regionsInRange.forEach {
-        points += it.start / bpUnits.bpPerUnit.toDouble() to onValue
-        points += it.end / bpUnits.bpPerUnit.toDouble() to offValue
+        val start = if (it.start < range.first) range.first else it.start
+        points += start / bpUnits.bpPerUnit.toDouble() to onValue
+        val end = if (it.end > range.last) range.last else it.end
+        points += end / bpUnits.bpPerUnit.toDouble() to offValue
     }
     points.sortBy { it.first }
 

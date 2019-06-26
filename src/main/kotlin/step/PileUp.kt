@@ -32,7 +32,7 @@ class PileUp(
     // Sum of all pile-up values in chromosome calculated on the fly and cached for efficiency
     val sum: Double
 ) : SignalData {
-    private val scalingFactor: Double = sqrt(sum)
+    private val scalingFactor: Double = if(sum == 0.0) 1.0 else sqrt(sum)
     fun scaledValue(bp: Int): Double = values[bp] / scalingFactor
 
     override operator fun get(bp: Int): Double = values[bp]
