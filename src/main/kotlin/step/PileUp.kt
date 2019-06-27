@@ -65,7 +65,7 @@ fun runPileUp(inputs: List<PileUpInput>): MutableMap<String, PileUp> {
                     "pileUpAlgorithm=${options.pileUpAlgorithm}, " +
                     "forwardShift=${options.forwardShift}, reverseShift=${options.reverseShift}"
         }
-        val samReader = SamReaderFactory.make().open(sam)
+        val samReader = SamReaderFactory.make().validationStringency(ValidationStringency.LENIENT).open(sam)
         val chromosomeLengths: Map<String, Int> = samReader.fileHeader.sequenceDictionary.sequences
             .map { it.sequenceName to it.sequenceLength }.toMap()
 
