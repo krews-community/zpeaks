@@ -1,6 +1,7 @@
 package step
 
 import htsjdk.samtools.*
+import model.ChromBounds
 import mu.KotlinLogging
 import java.nio.file.Path
 
@@ -14,7 +15,7 @@ private val log = KotlinLogging.logger {}
  *
  * @returns a list of chromosomes with max lengths (The highest length given in a bam per chromosome)
  */
-fun prepBams(bams: List<Path>, chrFilter: List<String>?): Map<String, Int> {
+fun prepBams(bams: List<Path>, chrFilter: Map<String, IntRange?>? = null): Map<String, ChromBounds> {
     log.info { "Collecting chromosome metadata and checking BAMs for indexes..." }
     val chrLengths = mutableMapOf<String, Int>()
     for(bam in bams) {
@@ -36,6 +37,14 @@ fun prepBams(bams: List<Path>, chrFilter: List<String>?): Map<String, Int> {
             }
         }
     }
+
+    val chrRanges = chrLengths.map { (chr, length) ->
+        val range =
+            if (chrFilter?.get(chr) != null) chrFilter.getValue(chr)!!
+            else (0 until length)
+        chr to ChromBounds(chr, length, range)
+    }.toMap()
+
     log.info { "BAM prep complete!" }
-    return chrLengths
+    return chrRanges
 }

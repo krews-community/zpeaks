@@ -13,7 +13,7 @@ class PileUpTests {
     fun `Test pile-up on multiple alignment files`() {
         val pileUpOptions = PileUpOptions(Strand.BOTH, PileUpAlgorithm.START)
 
-        val pileUpsA = runPileUp(MULTI_BAM_1_PATH, CHR_22, CHR_22_SIZE, pileUpOptions)
+        val pileUpsA = runPileUp(MULTI_BAM_1_PATH, CHR_22, CHR_22_SIZE, 0 until CHR_22_SIZE, pileUpOptions)
         assertThat(pileUpsA.chr).isEqualTo(CHR_22)
         val maxBetween0And10mA = pileUpsA.maxBetween(0, 10_000_000)
         assertThat(maxBetween0And10mA).isEqualTo(0)
@@ -24,7 +24,7 @@ class PileUpTests {
             listOf(MULTI_BAM_1_PATH, MULTI_BAM_2_PATH, MULTI_BAM_3_PATH, MULTI_BAM_4_PATH)
             .map { PileUpInput(it, pileUpOptions) }
         val multiRunner = BottomUpZRunner(ZRunConfig(multiPileUpInputs))
-        val pileUpsB = multiRunner.pileUp(CHR_22, CHR_22_SIZE)
+        val pileUpsB = multiRunner.pileUp(CHR_22, CHR_22_SIZE, 0 until CHR_22_SIZE)
         assertThat(pileUpsB.chr).isEqualTo(CHR_22)
         val maxBetween0And10mB = pileUpsB.maxBetween(0, 10_000_000)
         assertThat(maxBetween0And10mB).isEqualTo(0)

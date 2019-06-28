@@ -14,11 +14,10 @@ private val log = KotlinLogging.logger {}
 
 data class ZRunConfig(
     val pileUpInputs: List<PileUpInput>,
-    val chrFilter: List<String>? = null,
+    val chrFilter: Map<String, IntRange?>? = null,
     val signalOut: SignalOutput? = null,
     val peaksOut: Path? = null,
     val smoothing: Double = 50.0,
-    val normalizePDF: Boolean = false,
     val threshold: Double = 6.0,
     val fitMode: FitMode = FitMode.SKEW,
     val parallelism: Int? = null
@@ -27,9 +26,8 @@ data class ZRunConfig(
 abstract class ZRunner(private val name: String, protected val runConfig: ZRunConfig) {
 
     fun prepBams() = with(runConfig) { prepBams(pileUpInputs.map { it.bam }, chrFilter) }
-    abstract fun pileUp(chr: String, length: Int, onRange: IntRange? = null, subsetSize: Int? = null): PileUp
-    fun pdf(pileUp: PileUp, onRange: IntRange? = null, subsetSize: Int? = null) =
-        with(runConfig) { pdf(pileUp, smoothing, normalizePDF, onRange, subsetSize) }
+    abstract fun pileUp(chr: String, chrLength: Int, range: IntRange): PileUp
+    fun pdf(pileUp: PileUp) = with(runConfig) { pdf(pileUp, smoothing) }
     open fun peaks(pdf: PDF): List<Region> = with(runConfig) { callPeaks(pdf, threshold) }
 
     fun run() = with(runConfig) {
@@ -39,9 +37,9 @@ abstract class ZRunner(private val name: String, protected val runConfig: ZRunCo
         log.info { "ZPeaks run started with parallelism = ${ForkJoinPool.commonPool().parallelism}" }
 
         log.info { "Running $name ZPeaks operation on ${pileUpInputs.size} alignment files..." }
-        val chrLengths = prepBams()
-        for ((chr, length) in chrLengths) {
-            val pileUp = pileUp(chr, length)
+        val chrsWithBounds = prepBams()
+        for ((chr, bounds) in chrsWithBounds) {
+            val pileUp = pileUp(chr, bounds.length, bounds.range)
             if (signalOut != null && signalOut.type == SignalOutputType.RAW) {
                 createSignalFile(signalOut.path, signalOut.format, chr, pileUp)
             }

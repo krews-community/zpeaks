@@ -16,7 +16,7 @@ private val log = KotlinLogging.logger {}
 fun callPeaks(pdf: PDF, threshold: Double): List<Region> {
     val peaks = mutableListOf<Region>()
     var currentRegionStart: Int? = null
-    for (chrIndex in 0 until pdf.chrLength) {
+    for (chrIndex in pdf.range) {
         val value = pdf[chrIndex]
         val stdDevsValue = (value - pdf.background.average) / pdf.background.stdDev
         val aboveThreshold =  stdDevsValue > threshold
@@ -32,8 +32,6 @@ fun callPeaks(pdf: PDF, threshold: Double): List<Region> {
 
     return peaks
 }
-
-fun mergePeaks(vararg allPeaks: List<Region>) = mergePeaks(allPeaks.toList())
 
 /**
  * Merge many lists of peaks into one list of peaks. Peaks that overlap will be merged together.

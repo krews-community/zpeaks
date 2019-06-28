@@ -21,7 +21,7 @@ class ZPeaksCommand(val run: (RunType, ZRunConfig) -> Unit = ::run): CliktComman
         .path(exists = true)
         .multiple()
         .validate { require(it.isNotEmpty()) { "At least one path must be given" } }
-    private val chrFilter: Path? by option("-chrFilter", help="Chromosome Filter file. An optional new-line " +
+    private val chrFilterPath: Path? by option("-chrFilter", help="Chromosome Filter file. An optional new-line " +
             "delimited file containing the chromosome that we will analyze. Others will be ignored.")
         .path(exists = true)
     private val signalOutPath: Path? by option("-signalOut", help="Output Pile-Up file").path()
@@ -53,8 +53,6 @@ class ZPeaksCommand(val run: (RunType, ZRunConfig) -> Unit = ::run): CliktComman
     private val smoothing: Double by option("-smoothingFactor",
         help="Smoothing Factor for calculating PDF for Pile Up data during Peaks step.").double()
         .default(50.0)
-    private val normalizePDF: Boolean by option("-normalizePdf",
-        help="If true, PDF values are scaled to the natural gaussian amplitude").flag()
     private val threshold: Double by option("-threshold", help="Threshold used during peak calling").double()
         .default(6.0)
     private val fitMode: FitMode by option("-fitMode", help="Sub-Peak Fitting Modes.")
@@ -80,8 +78,8 @@ class ZPeaksCommand(val run: (RunType, ZRunConfig) -> Unit = ::run): CliktComman
             pileUpInputs += PileUpInput(sam, pileUpOptions)
         }
 
-        val chrFilterList = Files.newBufferedReader(chrFilter).lines().toList()
-        val runConfig = ZRunConfig(pileUpInputs, chrFilterList, signalOut, peaksOut, smoothing, normalizePDF,
+        val chrFilter = if (chrFilterPath != null) parseChrFilter(chrFilterPath!!) else null
+        val runConfig = ZRunConfig(pileUpInputs, chrFilter, signalOut, peaksOut, smoothing,
             threshold, fitMode, parallelism)
         run(runType, runConfig)
     }

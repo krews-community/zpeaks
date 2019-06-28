@@ -22,9 +22,9 @@ class AppTests {
 
         val runConfig = ZRunConfig(listOf(PileUpInput(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))))
         val zRunner = SingleFileZRunner(runConfig)
-        val pileUp = zRunner.pileUp(CHR_22, CHR_22_SIZE)
+        val pileUp = zRunner.pileUp(CHR_22, CHR_22_SIZE, 10_000_000 until 15_000_000)
 
-        val pdf = zRunner.pdf(pileUp,10_000_000 .. 15_000_000)
+        val pdf = zRunner.pdf(pileUp)
         val peaks = zRunner.peaks(pdf)
         val subPeaks = SkewFitter.fit(CHR_22, peaks, pdf)
         writeSkewSubPeaksBed(peaksOut, CHR_22, subPeaks)

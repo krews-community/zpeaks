@@ -60,7 +60,7 @@ fun iterateSignalSections(chr: String, data: SignalData, signalResolution: Int,
     val roundFactor = (10.0).pow(signalResolution)
     var currentStart: Int? = null
     var currentValue: Number? = null
-    for (index in 0 until data.chrLength) {
+    for (index in data.range) {
         val value = floor(data[index].toDouble() * roundFactor) / roundFactor
         if (currentValue == value) continue
         if (currentValue != null) {

@@ -3,6 +3,7 @@ package step
 import htsjdk.samtools.*
 import model.*
 import mu.KotlinLogging
+import util.*
 import java.nio.file.Path
 import kotlin.math.sqrt
 
@@ -26,16 +27,18 @@ class PileUp(
     // Pile-up values in chromosome.
     private val values: DoubleArray,
     // Chromosome as named in alignment file
-    val chr: String,
+    override val chr: String,
     // Chromosome length pulled directly from BAM File
-    override val chrLength: Int,
+    val chrLength: Int,
+    // Chromosome range to be used downstream
+    override val range: IntRange,
     // Sum of all pile-up values in chromosome calculated on the fly and cached for efficiency
     val sum: Double
 ) : SignalData {
-    private val scalingFactor: Double = if(sum == 0.0) 1.0 else sqrt(sum)
-    fun scaledValue(bp: Int): Double = values[bp] / scalingFactor
-
     override operator fun get(bp: Int): Double = values[bp]
+
+    private val scalingFactor: Double = if(sum == 0.0) 1.0 else sqrt(sum)
+    fun scaledValue(bp: Int): Double = this[bp] / scalingFactor
 }
 
 /**
@@ -56,10 +59,11 @@ data class PileUpOptions(
  *
  * @return the in-memory pile-up
  */
-fun runPileUp(bam: Path, chr: String, chrLength: Int, options: PileUpOptions): PileUp {
+fun runPileUp(bam: Path, chr: String, chrLength: Int, range: IntRange, options: PileUpOptions): PileUp {
     log.info { "Performing pile-up for chromosome $chr on alignment $bam..." }
     val values = DoubleArray(chrLength) { 0.0 }
     var sum = 0L
+    val pileUpBounds = 0 until chrLength
     SamReaderFactory.make().open(bam).use { reader ->
         reader.query(chr, 0, 0, false).forEach { record ->
             // If we're only using plus strand values and this record is a plus strand and
@@ -68,22 +72,24 @@ fun runPileUp(bam: Path, chr: String, chrLength: Int, options: PileUpOptions): P
                 (options.strand == Strand.MINUS && !record.readNegativeStrandFlag)
             ) return@forEach
 
-            val start = pileUpStart(record, chrLength, options.forwardShift, options.reverseShift)
+            // If the record is junk, continue
+            if (record.end < record.start || record.end - record.start > LENGTH_LIMIT) return@forEach
+
+            val start = pileUpStart(record, pileUpBounds, options.forwardShift, options.reverseShift)
             when (options.pileUpAlgorithm) {
                 PileUpAlgorithm.START -> {
                     values[start]++
                     sum++
                 }
                 PileUpAlgorithm.MID_POINT -> {
-                    val end = pileUpEnd(record, chrLength, options.forwardShift, options.reverseShift)
+                    val end = pileUpEnd(record, pileUpBounds, options.forwardShift, options.reverseShift)
                     val midPoint = (start + end) / 2
                     values[midPoint]++
                     sum++
                 }
                 PileUpAlgorithm.LENGTH -> {
-                    val end = pileUpEnd(record, chrLength, options.forwardShift, options.reverseShift)
+                    val end = pileUpEnd(record, pileUpBounds, options.forwardShift, options.reverseShift)
                     val length = end - start
-                    if (length > LENGTH_LIMIT) return@forEach
                     for (i in start until end) {
                         values[i]++
                     }
@@ -94,7 +100,7 @@ fun runPileUp(bam: Path, chr: String, chrLength: Int, options: PileUpOptions): P
     }
 
     log.info { "Pile-up complete with sum $sum" }
-    return PileUp(values, chr, chrLength, sum.toDouble())
+    return PileUp(values, chr, chrLength, range, sum.toDouble())
 }
 
 /**
@@ -102,11 +108,11 @@ fun runPileUp(bam: Path, chr: String, chrLength: Int, options: PileUpOptions): P
  *
  * This start will actually be the record's end it's strand is minus
  */
-private fun pileUpStart(record: SAMRecord, chrLength: Int, forwardShift: Int, reverseShift: Int): Int {
+private fun pileUpStart(record: SAMRecord, bounds: IntRange, forwardShift: Int, reverseShift: Int): Int {
     return if (!record.readNegativeStrandFlag) {
-        (record.start + forwardShift).withinBounds(0, chrLength - 1)
+        (record.start + forwardShift).withinBounds(bounds)
     } else {
-        (record.end + reverseShift).withinBounds(0, chrLength - 1)
+        (record.end + reverseShift).withinBounds(bounds)
     }
 }
 
@@ -115,16 +121,20 @@ private fun pileUpStart(record: SAMRecord, chrLength: Int, forwardShift: Int, re
  *
  * This end will actually be the record's start it's strand is minus
  */
-private fun pileUpEnd(record: SAMRecord, chrLength: Int, forwardShift: Int, reverseShift: Int): Int {
+private fun pileUpEnd(record: SAMRecord, bounds: IntRange, forwardShift: Int, reverseShift: Int): Int {
     return if (!record.readNegativeStrandFlag) {
-        (record.end + reverseShift).withinBounds(0, chrLength - 1)
+        (record.end + reverseShift).withinBounds(bounds)
     } else {
-        (record.start + forwardShift).withinBounds(0, chrLength - 1)
+        (record.start + forwardShift).withinBounds(bounds)
     }
 }
 
 /**
  * @returns: if < start: start, if > end: end, else value
  */
-private fun Int.withinBounds(start: Int, end: Int) =
-    if (this < start) start else if (this > end) end else this
+private fun Int.withinBounds(bounds: IntRange) =
+    when {
+        this < bounds.start -> bounds.start
+        this > bounds.endInclusive -> bounds.endInclusive
+        else -> this
+    }

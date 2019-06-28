@@ -15,8 +15,9 @@ class PerformanceTest {
 
     @Test
     fun `Run Skew Sub-Peaks on Large Peak`() {
-        val pileUp = runPileUp(TEST_BAM_PATH, CHR_22, CHR_22_SIZE, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))
-        val pdf = pdf(pileUp, 50.0, false)
+        val pileUp = runPileUp(TEST_BAM_PATH, CHR_22, CHR_22_SIZE,
+            0 until CHR_22_SIZE, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))
+        val pdf = pdf(pileUp, 50.0)
         val peaks = callPeaks(pdf, 6.0)
 
         val maxPeak = peaks.maxBy { it.end - it.start }!!
@@ -54,7 +55,7 @@ class PerformanceTest {
         val peaksOut = testDir.resolve(peaksFilename)
         val runConfig = ZRunConfig(
             pileUpInputs = pileUpInputs,
-            chrFilter = listOf(CHR_22),
+            chrFilter = mapOf(CHR_22 to (30_000_000 until 32_000_000)),
             peaksOut = peaksOut,
             fitMode = FitMode.SKEW
         )
@@ -63,8 +64,6 @@ class PerformanceTest {
         peaksOut.copyToAndDelete(MULTI_BAM_1_PATH.resolveSibling(peaksFilename))
     }
 
-    // TODO There is a major bug happening with this test. Only two peaks are found. Related to merging.
-    // Likely a result of one very large peak.
     @Test
     fun `Run Top-Down Skew Sub-Peaks on All Peaks from Many-File Pile-Up`() {
         val pileUpInputs =
@@ -74,7 +73,7 @@ class PerformanceTest {
         val peaksOut = testDir.resolve(peaksFilename)
         val runConfig = ZRunConfig(
             pileUpInputs = pileUpInputs,
-            chrFilter = listOf(CHR_22),
+            chrFilter = mapOf(CHR_22 to (30_000_000 until 30_500_000)),
             peaksOut = peaksOut,
             fitMode = FitMode.SKEW
         )
@@ -95,14 +94,15 @@ class PerformanceTest {
 
 }
 
-private fun runManyAndAverage(sampleRange: IntRange, fitter: Fitter<*>) {
-    val pileUp = runPileUp(TEST_BAM_PATH, CHR_22, CHR_22_SIZE, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))
+private fun runManyAndAverage(range: IntRange, fitter: Fitter<*>) {
+    val pileUp = runPileUp(TEST_BAM_PATH, CHR_22, CHR_22_SIZE, range,
+        PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))
 
     val errors = mutableSetOf<Double>()
     val times = mutableSetOf<Long>()
     repeat(25) {
         log.info { "Running $it" }
-        val pdf = pdf(pileUp, 50.0, false, sampleRange)
+        val pdf = pdf(pileUp, 50.0)
         val peaks = callPeaks(pdf, 6.0)
         val maxPeak = peaks.maxBy { it.end - it.start }!!
 

@@ -56,3 +56,5 @@ fun <T> runParallel (name: String, valueLabel: String, values: List<T>, runForVa
 val Enum<*>.lowerHyphenName: String get() = CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.LOWER_HYPHEN, this.name)
 
 fun Double.pow(x: Int) = FastMath.pow(this, x)
+
+val IntRange.length get() = this.endInclusive - this.start + 1

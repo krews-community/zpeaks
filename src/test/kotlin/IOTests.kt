@@ -10,7 +10,9 @@ class IOTests {
 
     private fun testPileUpFormat(fileName: String, format: SignalOutputFormat, checkContents: Boolean = true) {
         var outputPath = Files.createTempDirectory("zpeaks_test").resolve(fileName)
-        val pileUp =  runPileUp(TEST_BAM_PATH, CHR_22, CHR_22_SIZE, PileUpOptions(Strand.BOTH, PileUpAlgorithm.LENGTH))
+        prepBams(listOf(TEST_BAM_PATH))
+        val pileUp =  runPileUp(TEST_BAM_PATH, CHR_22, CHR_22_SIZE,
+            0 until CHR_22_SIZE, PileUpOptions(Strand.BOTH, PileUpAlgorithm.LENGTH))
         createSignalFile(outputPath, format, CHR_22, pileUp)
 
         outputPath = outputPath.copyToAndDelete(TEST_BAM_PATH.resolveSibling(fileName))

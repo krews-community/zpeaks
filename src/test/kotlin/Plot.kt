@@ -28,55 +28,51 @@ class Plot {
     fun stop() = Thread.sleep(Long.MAX_VALUE)
 
     @Test
-    fun `Plot Single Alignment PDF`() = plotPdf(SingleFileZRunner(singleFileConfig()), CHR_22, CHR_22_SIZE,
-        20_890_000 until 20_910_000)
+    fun `Plot Single Alignment PDF`() = plotPdf(SingleFileZRunner(singleFileConfig()), 20_890_000 until 20_910_000)
 
     @Test
-    fun `Plot Multi Alignment Bottom-Up PDF`() = plotPdf(BottomUpZRunner(multiFileConfig()), CHR_22, CHR_22_SIZE,
-        30_000_000 until 30_025_000, 2_000_000)
+    fun `Plot Multi Alignment Bottom-Up PDF`() = plotPdf(BottomUpZRunner(multiFileConfig()),
+        30_000_000 until 30_025_000)
 
     @Test
-    fun `Plot Big Multi Alignment Bottom-Up PDF`() = plotPdf(BottomUpZRunner(bigMultiFileConfig()), CHR_22, CHR_22_SIZE,
-        30_000_000 until 30_025_000, 500_000)
+    fun `Plot Big Multi Alignment Bottom-Up PDF`() = plotPdf(BottomUpZRunner(bigMultiFileConfig()),
+        30_000_000 until 30_025_000)
 
     @Test
-    fun `Plot Big Multi Alignment Bottom-Up PDF Zoomed-In`() = plotPdf(BottomUpZRunner(bigMultiFileConfig()), CHR_22, CHR_22_SIZE,
-        30_010_000 until 30_017_000, 500_000)
+    fun `Plot Big Multi Alignment Bottom-Up PDF Zoomed-In`() = plotPdf(BottomUpZRunner(bigMultiFileConfig()),
+        30_010_000 until 30_017_000)
 
     @Test
-    fun `Plot Big Multi Alignment Top-Down PDF`() = plotPdf(TopDownZRunner(bigMultiFileConfig()), CHR_22, CHR_22_SIZE,
-            30_000_000 until 30_025_000, 500_000)
+    fun `Plot Big Multi Alignment Top-Down PDF`() = plotPdf(TopDownZRunner(bigMultiFileConfig()),
+            30_000_000 until 30_025_000)
 
     @Test
-    fun `Plot Big Multi Alignment Top-Down PDF Zoomed-In`() = plotPdf(TopDownZRunner(bigMultiFileConfig()), CHR_22, CHR_22_SIZE,
-        30_010_000 until 30_017_000, 500_000)
+    fun `Plot Big Multi Alignment Top-Down PDF Zoomed-In`() = plotPdf(TopDownZRunner(bigMultiFileConfig()),
+        30_010_000 until 30_017_000)
 
     @Test
-    fun `Plot Skew Sub-Peaks`() = plotSubPeaks(SingleFileZRunner(singleFileConfig()), CHR_22, CHR_22_SIZE, SkewFitter,
-        SAMPLE_RANGE_LARGEST)
+    fun `Plot Skew Sub-Peaks`() = plotSubPeaks(SingleFileZRunner(singleFileConfig()),
+        SAMPLE_RANGE_LARGEST, SkewFitter)
 
     @Test
-    fun `Plot Standard Sub-Peaks`() = plotSubPeaks(SingleFileZRunner(singleFileConfig()), CHR_22, CHR_22_SIZE, StandardFitter,
-        SAMPLE_RANGE_LARGEST)
+    fun `Plot Standard Sub-Peaks`() = plotSubPeaks(SingleFileZRunner(singleFileConfig()),
+        SAMPLE_RANGE_LARGEST, StandardFitter)
 
     @Test
     fun `Plot Skew Sub-Peaks from Multiple Alignments`() =
-        plotSubPeaks(BottomUpZRunner(multiFileConfig()), CHR_22, CHR_22_SIZE, SkewFitter,
-            30_000_000 until 30_400_000, 2_000_000)
+        plotSubPeaks(BottomUpZRunner(multiFileConfig()),30_000_000 until 30_400_000, SkewFitter)
 
     @Test
     fun `Plot Skew Sub-Peaks from Multiple Alignments - Top Down`() =
-        plotSubPeaks(TopDownZRunner(multiFileConfig()), CHR_22, CHR_22_SIZE, SkewFitter,
-            30_000_000 until 30_400_000, 2_000_000)
+        plotSubPeaks(TopDownZRunner(multiFileConfig()), 30_000_000 until 30_400_000, SkewFitter)
 
     @Test
     fun `Plot Skew Sub-Peaks from Many Alignments - Top Down`() =
-        plotSubPeaks(TopDownZRunner(bigMultiFileConfig()), CHR_22, CHR_22_SIZE, SkewFitter,
-            30_000_000 until 30_400_000, 500_000)
+        plotSubPeaks(TopDownZRunner(bigMultiFileConfig()),30_000_000 until 30_400_000, SkewFitter)
 }
 
 private fun simpleZRunConfig(pileUpInputs: List<PileUpInput>) = ZRunConfig(
-    pileUpInputs.toList(), null, null, null, 50.0, false, 6.0)
+    pileUpInputs.toList(), null, null, null, 50.0, 6.0)
 
 private fun singleFileConfig() = simpleZRunConfig(listOf(PileUpInput(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))))
 
@@ -89,16 +85,16 @@ private fun bigMultiFileConfig() = simpleZRunConfig(
     MANY_BAM_PATHS.map { PileUpInput(it, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START)) }
 )
 
-private fun plotPdf(zRunner: ZRunner, chr: String, chrLength: Int, sampleRange: IntRange, subsetSize: Int? = null) {
-    val displayRange = sampleRange withNSteps 1000
+private fun plotPdf(zRunner: ZRunner, range: IntRange) {
+    val displayRange = range withNSteps 1000
 
     zRunner.prepBams()
-    val pileUp = zRunner.pileUp(chr, chrLength, sampleRange, subsetSize)
+    val pileUp = zRunner.pileUp(CHR_22, CHR_22_SIZE, range)
     val bpUnits = BPUnits.MBP
     val pileUpChartData = bpData(displayRange, bpUnits) { pileUp[it] }
     val pileUpChart = xyAreaChart("Pile Up", bpUnits, pileUpChartData)
 
-    val pdf = zRunner.pdf(pileUp, sampleRange, subsetSize)
+    val pdf = zRunner.pdf(pileUp)
     val pdfChartData = bpData(displayRange, bpUnits) {
         (pdf[it] - pdf.background.average) / pdf.background.stdDev
     }
@@ -117,11 +113,10 @@ private fun plotPdf(zRunner: ZRunner, chr: String, chrLength: Int, sampleRange: 
     SwingWrapper(listOf(pileUpChart, pdfChart)).displayChartMatrix()
 }
 
-private fun <T : GaussianParameters> plotSubPeaks(zRunner: ZRunner, chr: String, chrLength: Int,
-                                                  fitter: Fitter<T>, sampleRange: IntRange, subsetSize: Int? = null) {
+private fun <T : GaussianParameters> plotSubPeaks(zRunner: ZRunner, range: IntRange, fitter: Fitter<T>) {
     zRunner.prepBams()
-    val pileUp = zRunner.pileUp(chr, chrLength, sampleRange, subsetSize)
-    val pdf = zRunner.pdf(pileUp, sampleRange, subsetSize)
+    val pileUp = zRunner.pileUp(CHR_22, CHR_22_SIZE, range)
+    val pdf = zRunner.pdf(pileUp)
     val peaks = zRunner.peaks(pdf)
     val maxPeak = peaks.maxBy { it.end - it.start }
     log.info { "Max Peak: $maxPeak" }
