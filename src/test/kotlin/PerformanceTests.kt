@@ -109,7 +109,7 @@ private fun runManyAndAverage(range: IntRange, fitter: Fitter<*>) {
         val peakValues = (maxPeak.start..maxPeak.end).map { pdf[it] }
 
         val startTime = System.currentTimeMillis()
-        val fits = fitter.fitPeak(peakValues, maxPeak.start)
+        val fits = fitter.fitPeak(peakValues.map { it.toDouble() }, maxPeak.start)
         errors += fits.map { it.error }.average()
         times += System.currentTimeMillis() - startTime
     }

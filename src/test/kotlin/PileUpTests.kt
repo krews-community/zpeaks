@@ -18,7 +18,7 @@ class PileUpTests {
         val maxBetween0And10mA = pileUpsA.maxBetween(0, 10_000_000)
         assertThat(maxBetween0And10mA).isEqualTo(0)
         val maxBetween30And32mA = pileUpsA.maxBetween(30_000_000, 32_000_000)
-        assertThat(maxBetween30And32mA).isGreaterThan(0.0)
+        assertThat(maxBetween30And32mA).isGreaterThan(0.0F)
 
         val multiPileUpInputs =
             listOf(MULTI_BAM_1_PATH, MULTI_BAM_2_PATH, MULTI_BAM_3_PATH, MULTI_BAM_4_PATH)
@@ -29,15 +29,15 @@ class PileUpTests {
         val maxBetween0And10mB = pileUpsB.maxBetween(0, 10_000_000)
         assertThat(maxBetween0And10mB).isEqualTo(0)
         val maxBetween30And32mB = pileUpsB.maxBetween(30_000_000, 32_000_000)
-        assertThat(maxBetween30And32mB).isGreaterThan(0.0)
+        assertThat(maxBetween30And32mB).isGreaterThan(0.0F)
 
         assertThat(maxBetween30And32mB).isGreaterThan(maxBetween30And32mA)
     }
 
 }
 
-fun PileUp.maxBetween(from: Int, to: Int): Double {
-    var max = 0.0
+fun PileUp.maxBetween(from: Int, to: Int): Float {
+    var max = 0.0F
     for (i in from until to) {
         if (this[i] > max) max = this[i]
     }

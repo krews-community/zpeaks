@@ -91,7 +91,7 @@ private fun plotPdf(zRunner: ZRunner, range: IntRange) {
     zRunner.prepBams()
     val pileUp = zRunner.pileUp(CHR_22, CHR_22_SIZE, range)
     val bpUnits = BPUnits.MBP
-    val pileUpChartData = bpData(displayRange, bpUnits) { pileUp[it] }
+    val pileUpChartData = bpData(displayRange, bpUnits) { pileUp[it].toDouble() }
     val pileUpChart = xyAreaChart("Pile Up", bpUnits, pileUpChartData)
 
     val pdf = zRunner.pdf(pileUp)
@@ -124,11 +124,11 @@ private fun <T : GaussianParameters> plotSubPeaks(zRunner: ZRunner, range: IntRa
     val bpUnits = BPUnits.KBP
     val peakRegion = maxPeak!!
     val displayRange = peakRegion.start until peakRegion.end - 1 withNSteps 1000
-    val peaksChartData = bpData(displayRange, bpUnits) { pdf[it] }
+    val peaksChartData = bpData(displayRange, bpUnits) { pdf[it].toDouble() }
     val chart = xyAreaChart("Peak", bpUnits, peaksChartData)
 
     val peakValues = (maxPeak.start..maxPeak.end).map { pdf[it] }
-    val fits = fitter.fitPeak(peakValues, maxPeak.start)
+    val fits = fitter.fitPeak(peakValues.map { it.toDouble() }, maxPeak.start)
 
     for ((fitIndex, fit) in fits.withIndex()) {
         val fitDisplayRange = fit.region.start until fit.region.end - 1 withNSteps 300

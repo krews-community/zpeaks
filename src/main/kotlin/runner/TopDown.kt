@@ -13,7 +13,7 @@ class TopDownZRunner(runConfig: ZRunConfig) : ZRunner("Top-Down", runConfig) {
     override fun pileUp(chr: String, chrLength: Int, range: IntRange): PileUp = with(runConfig) {
         log.info { "Creating peaks-only aggregate track..." }
         // Array containing all aggregated data
-        val aggregateChrData = DoubleArray(chrLength)
+        val aggregateChrData = FloatArray(chrLength)
         // Array containing the number of sources the data came from at each BP
         val aggregateSources = IntArray(chrLength)
         val allPeaks = mutableListOf<List<Region>>()
@@ -37,7 +37,7 @@ class TopDownZRunner(runConfig: ZRunConfig) : ZRunner("Top-Down", runConfig) {
         var aggregateDataSum = 0.0
         for (i in 0 until aggregateChrData.size) {
             if (aggregateSources[i] == 0) continue
-            aggregateChrData[i] /= aggregateSources[i].toDouble()
+            aggregateChrData[i] /= aggregateSources[i].toFloat()
             aggregateDataSum += aggregateChrData[i]
         }
 

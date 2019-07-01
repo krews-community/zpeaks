@@ -14,12 +14,12 @@ const val BACKGROUND_LIMIT = 1000
 data class Background(val average: Double, val stdDev: Double)
 
 class PDF(
-    private val values: DoubleArray,
+    private val values: FloatArray,
     val background: Background,
     override val chr: String,
     override val range: IntRange
 ): SignalData {
-    override operator fun get(bp: Int): Double = values[bp - range.start]
+    override operator fun get(bp: Int): Float = values[bp - range.start]
 }
 
 /**
@@ -35,7 +35,7 @@ fun pdf(pileUp: PileUp, bandwidth: Double): PDF {
         IntStream.range(pileUp.range.start, pileUp.range.endInclusive).parallel().forEach { chrIndex ->
             tracker.incrementAndGet()
             val pileUpValue = pileUp[chrIndex]
-            if (pileUpValue == 0.0) return@forEach
+            if (pileUpValue == 0.0F) return@forEach
             val arrayIndex = chrIndex - pileUp.range.start
             pdfValues.addAndGet(arrayIndex, pileUpValue * lookupTable[0])
             for (i in 1 until windowSize) {
@@ -51,18 +51,16 @@ fun pdf(pileUp: PileUp, bandwidth: Double): PDF {
 
     val activeLength = activeLength(pileUp)
     val background = background(lookupTable, pileUp.sum, windowSize, activeLength)
-    // Get values as a regular DoubleArray
-    val values = DoubleArray(length) { pdfValues[it] }
+    // Get values as a FloatArray
+    val values = FloatArray(length) { pdfValues[it].toFloat() }
 
     // Normalize PDF values
-    val median = values.median()
-    val normalizedValues = DoubleArray(values.size) { i -> values[i] / median }
-    val normalizedBackground = Background(background.average / median, background.stdDev / median)
+    val average = values.average().toFloat()
+    for (i in 0 until values.size) values[i] /= average
+    val normalizedBackground = Background(background.average / average, background.stdDev / average)
 
-    return PDF(normalizedValues, normalizedBackground, pileUp.chr, pileUp.range)
+    return PDF(values, normalizedBackground, pileUp.chr, pileUp.range)
 }
-
-private fun DoubleArray.median() = this.sorted().let { (it[it.size / 2] + it[(it.size - 1) / 2]) / 2 }
 
 private fun activeLength(pileUp: PileUp): Int {
     var start: Int? = null

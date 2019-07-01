@@ -40,7 +40,7 @@ abstract class Fitter<T : GaussianParameters> (private val name: String, val opt
         (peaks as MutableList).sortByDescending { it.end - it.start }
         val subPeaks = Collections.synchronizedList(mutableListOf<SubPeak<T>>())
         runParallel("$name on $chr", "peaks", peaks) { peak ->
-            val peakValues = (peak.start..peak.end).map { pdf[it] }
+            val peakValues = (peak.start..peak.end).map { pdf[it].toDouble() }
             subPeaks += fitPeak(peakValues, peak.start).flatMap { fit ->
                 fit.subPeaks
             }

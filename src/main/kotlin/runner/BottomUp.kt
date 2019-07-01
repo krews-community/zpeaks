@@ -9,7 +9,7 @@ class BottomUpZRunner(runConfig: ZRunConfig) : ZRunner("Bottom-Up", runConfig) {
 
     override fun pileUp(chr: String, chrLength: Int, range: IntRange): PileUp = with(runConfig) {
         log.info { "Creating aggregate pile-up for $chr..." }
-        val aggregatePileUpData = DoubleArray(chrLength)
+        val aggregatePileUpData = FloatArray(chrLength)
         var sum = 0.0
         for (pileUpInput in pileUpInputs) {
             val pileUp = runPileUp(pileUpInput.bam, chr, chrLength, range, pileUpInput.options)

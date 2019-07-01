@@ -25,7 +25,7 @@ const val LENGTH_LIMIT = 100_000
 
 class PileUp(
     // Pile-up values in chromosome.
-    private val values: DoubleArray,
+    private val values: FloatArray,
     // Chromosome as named in alignment file
     override val chr: String,
     // Chromosome length pulled directly from BAM File
@@ -35,10 +35,10 @@ class PileUp(
     // Sum of all pile-up values in chromosome calculated on the fly and cached for efficiency
     val sum: Double
 ) : SignalData {
-    override operator fun get(bp: Int): Double = values[bp]
+    override operator fun get(bp: Int): Float = values[bp]
 
-    private val scalingFactor: Double = if(sum == 0.0) 1.0 else sqrt(sum)
-    fun scaledValue(bp: Int): Double = this[bp] / scalingFactor
+    private val scalingFactor: Float = if(sum == 0.0) 1.0F else sqrt(sum).toFloat()
+    fun scaledValue(bp: Int): Float = this[bp] / scalingFactor
 }
 
 /**
@@ -61,7 +61,7 @@ data class PileUpOptions(
  */
 fun runPileUp(bam: Path, chr: String, chrLength: Int, range: IntRange, options: PileUpOptions): PileUp {
     log.info { "Performing pile-up for chromosome $chr on alignment $bam..." }
-    val values = DoubleArray(chrLength) { 0.0 }
+    val values = FloatArray(chrLength) { 0.0F }
     var sum = 0L
     val pileUpBounds = 0 until chrLength
     SamReaderFactory.make().open(bam).use { reader ->
