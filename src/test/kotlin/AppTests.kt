@@ -1,13 +1,14 @@
-import io.writePeaksBed
-import io.writeSkewSubPeaksBed
-import model.*
 import mu.KotlinLogging
 import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.*
+import java.nio.file.*
 import step.*
 import step.subpeaks.*
 import util.*
-import java.nio.file.*
+import io.*
+import model.*
+import runner.SingleFileZRunner
+import runner.ZRunConfig
 
 private val log = KotlinLogging.logger {}
 
@@ -16,35 +17,23 @@ class AppTests {
     @Test
     fun `Test App Run`() {
         val peaksFilename = "ENCFF375IJW.chr22.peaks.bed"
-        val subPeaksFilename = "ENCFF375IJW.chr22.subPeaks.bed"
         val testDir = Files.createTempDirectory("zpeaks_test")
         var peaksOut = testDir.resolve(peaksFilename)
-        var subPeaksOut = testDir.resolve(subPeaksFilename)
 
-        val pileUp = runPileUp(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))
-            .getValue(TEST_BAM_CHR)
+        val runConfig = ZRunConfig(listOf(PileUpInput(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))))
+        val zRunner = SingleFileZRunner(runConfig)
+        zRunner.prepBams()
+        val pileUp = zRunner.pileUp(CHR_22, CHR_22_SIZE, 10_000_000 until 15_000_000)
 
-        val pdf = pdf(TEST_BAM_CHR, pileUp, 50.0, false, (10_000_000..15_000_000))
-        val peaks = callChromPeaks(pdf, 6.0)
-        writePeaksBed(peaksOut, mapOf(TEST_BAM_CHR to peaks))
-        val subPeaks = SkewFitter.fitChrom(TEST_BAM_CHR, peaks, pdf)
-        writeSkewSubPeaksBed(subPeaksOut, mapOf(TEST_BAM_CHR to subPeaks))
+        val pdf = zRunner.pdf(pileUp)
+        val peaks = zRunner.peaks(pdf)
+        val subPeaks = SkewFitter.fit(CHR_22, peaks, pdf)
+        writeSkewSubPeaksBed(peaksOut, CHR_22, subPeaks)
 
         peaksOut = peaksOut.copyToAndDelete(TEST_BAM_PATH.resolveSibling(peaksFilename))
-        subPeaksOut = subPeaksOut.copyToAndDelete(TEST_BAM_PATH.resolveSibling(subPeaksFilename))
 
-        // Check the Peaks output file.
-        val (peaksLineCount, peaksLineSample) = sampleOutputFile(peaksOut)
-        val peaksLineValues = peaksLineSample!!.split("\t")
-        assertThat(peaksLineValues[0]).isEqualTo("chr22")
-        assertThatCode { peaksLineValues[1].toInt() }.doesNotThrowAnyException()
-        assertThatCode { peaksLineValues[2].toInt() }.doesNotThrowAnyException()
-        assertThat(peaksLineValues[3]).isNotNull()
-        assertThatCode { peaksLineValues[4].toDouble() }.doesNotThrowAnyException()
-        assertThat(peaksLineCount).isGreaterThan(0)
-
-        // Check the Sub-Peaks output file
-        val (subPeaksLineCount, subPeaksLineSample) = sampleOutputFile(subPeaksOut)
+        // Check the Peaks output file
+        val (subPeaksLineCount, subPeaksLineSample) = sampleOutputFile(peaksOut)
         val subPeaksLineValues = subPeaksLineSample!!.split("\t")
         assertThat(subPeaksLineValues[0]).isEqualTo("chr22")
         assertThatCode { subPeaksLineValues[1].toInt() }.doesNotThrowAnyException()

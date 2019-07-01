@@ -1,21 +1,11 @@
 package step
 
+import com.google.common.collect.Iterators
+import com.google.common.collect.PeekingIterator
 import model.Region
 import mu.KotlinLogging
-import org.apache.commons.math3.util.FastMath.*
-import util.runParallel
 
 private val log = KotlinLogging.logger {}
-
-data class Peak(val region: Region, val score: Double)
-
-fun callPeaks(pdfs: Map<String, PDF>, threshold: Double): Map<String, List<Peak>> {
-    val peaks = mutableMapOf<String, List<Peak>>()
-    runParallel("Peak Calling", "chromosomes", pdfs.keys.toList()) { chr ->
-        peaks[chr] = callChromPeaks(pdfs.getValue(chr), threshold)
-    }
-    return peaks
-}
 
 /**
  * Find the peaks for the previous calculated PDF over a given threshold.
@@ -23,13 +13,11 @@ fun callPeaks(pdfs: Map<String, PDF>, threshold: Double): Map<String, List<Peak>
  * @param threshold How many standard deviations above average the pdf value needs to be to serve
  * as a cut-off for peaks
  */
-fun callChromPeaks(pdf: PDF, threshold: Double): List<Peak> {
-    val peaks = mutableListOf<Peak>()
+fun callPeaks(pdf: PDF, threshold: Double): List<Region> {
+    val peaks = mutableListOf<Region>()
     var currentRegionStart: Int? = null
-    var currentRegionMax = 0.0
-    for (chrIndex in 0 until pdf.chrLength) {
+    for (chrIndex in pdf.range) {
         val value = pdf[chrIndex]
-        currentRegionMax = max(currentRegionMax, value)
         val stdDevsValue = (value - pdf.background.average) / pdf.background.stdDev
         val aboveThreshold =  stdDevsValue > threshold
 
@@ -37,11 +25,45 @@ fun callChromPeaks(pdf: PDF, threshold: Double): List<Peak> {
             currentRegionStart = chrIndex
         }
         if(!aboveThreshold && currentRegionStart != null) {
-            peaks += Peak(Region(currentRegionStart, chrIndex-1), currentRegionMax)
+            peaks += Region(currentRegionStart, chrIndex-1)
             currentRegionStart = null
-            currentRegionMax = 0.0
         }
     }
 
     return peaks
+}
+
+/**
+ * Merge many lists of peaks into one list of peaks. Peaks that overlap will be merged together.
+ */
+fun mergePeaks(allPeaks: List<List<Region>>): List<Region> {
+    val allPeaksIterators = allPeaks
+        .map { peaks -> Iterators.peekingIterator(peaks.sortedBy { it.start }.iterator()) }
+    val mergedPeaks = mutableListOf<Region>()
+
+    while (allPeaksIterators.any { it.hasNext() }) {
+        var currentRegion = popLowestRegion(allPeaksIterators)
+        do {
+            var allAboveCurrentRegion = true
+            for (peaksIter in allPeaksIterators) {
+                if (peaksIter.hasNext() && peaksIter.peek().start <= currentRegion.end) {
+                    val nextPeak = peaksIter.next()
+                    if (nextPeak.end > currentRegion.end) currentRegion = currentRegion.copy(end = nextPeak.end)
+                    allAboveCurrentRegion = false
+                }
+            }
+        } while (!allAboveCurrentRegion)
+        mergedPeaks += currentRegion
+    }
+    return mergedPeaks
+}
+
+private fun popLowestRegion(peaksIterators: List<PeekingIterator<Region>>): Region {
+    var lowestIter: PeekingIterator<Region>? = null
+    for (peaksIter in peaksIterators) {
+        if (peaksIter.hasNext() && (lowestIter == null || peaksIter.peek().start < lowestIter.peek().start)) {
+            lowestIter = peaksIter
+        }
+    }
+    return lowestIter!!.next()
 }

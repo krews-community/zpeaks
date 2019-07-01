@@ -14,7 +14,7 @@ data class CandidateGaussian<T : GaussianParameters>(
 )
 
 fun findCandidates(data: List<Double>): List<Region> {
-    val background = min(data.first(), data.last())
+    val background = data.min()!!
     val dataWithoutBackground = data.map { it - background }
     var zeroCrossings = mutableListOf<Int>()
 
