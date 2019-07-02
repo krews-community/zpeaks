@@ -6,9 +6,12 @@ A Dockerized application for finding peaks from alignment files.
 
 ZPeaks can run in three modes: Single File, Top Down, and Bottom Up.
 
+Every mode starts by checking for indexes for each BAM inputs. If they already exist, this will be skipped. The 
+indexes will have the same name as the bams, but appended with ".bai"
+
 ### Single File
 
-Single File mode is for calculating peaks for a single BAM input file. 
+Single File mode is for calculating peaks for a single BAM input file.
 
 ![Single File ZPeaks Flow](img/zpeaks_single_file.png)
 
@@ -26,7 +29,7 @@ It will tend to give you more regions and will not miss those only present in on
 Bottom Up mode is for calcaulting peaks on multiple BAM input files. This mode will create a scaled pile-up from 
 many files, then smooth and fit sub-peaks on the aggregate pile-up.
 
-It will tend to give you fewer regions that are more pronounced / in more files. 
+It will tend to give you fewer regions that are more pronounced / in more files.
 
 ![Bottom Up ZPeaks Flow](img/zpeaks_bottom_up.png)
 
