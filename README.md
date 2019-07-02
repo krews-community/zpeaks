@@ -36,9 +36,9 @@ It will tend to give you fewer regions that are more pronounced / in more files.
 ## Requirements
 
 - Memory: 
-    - Single File: LCS * 16B + 1GB (typically 5GB for human)
-    - Bottom Up: LCS * 16B + 1GB (typically 5GB for human)
-    - Top Down: LCS * 28B + 1GB (typically 8GB for human)
+    - Single File: LCS * 4B + 1GB (typically 2GB for human)
+    - Bottom Up: LCS * 6B + 1GB (typically 2.5GB for human)
+    - Top Down: LCS * 8B + 1GB (typically 3GB for human)
 - CPUs: ZPeaks can parallelize for compute intensive tasks at a sub-chromosome level. It will run efficiently with 
 any number of cores.
 

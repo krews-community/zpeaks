@@ -1,6 +1,5 @@
 package step
 
-import com.google.common.util.concurrent.AtomicDoubleArray
 import model.*
 import mu.KotlinLogging
 import util.*
@@ -14,7 +13,7 @@ const val BACKGROUND_LIMIT = 1000
 data class Background(val average: Double, val stdDev: Double)
 
 class PDF(
-    private val values: FloatArray,
+    private val values: AtomicFloatArray,
     val background: Background,
     override val chr: String,
     override val range: IntRange
@@ -29,7 +28,7 @@ fun pdf(pileUp: PileUp, bandwidth: Double): PDF {
     val windowSize = windowSize(bandwidth)
     val lookupTable = lookupTable(windowSize, bandwidth)
     val length = pileUp.range.length
-    val pdfValues = AtomicDoubleArray(length)
+    val pdfValues = AtomicFloatArray(length)
 
     logProgress("Creating PDF for ${pileUp.chr}", length) { tracker ->
         IntStream.range(pileUp.range.start, pileUp.range.endInclusive).parallel().forEach { chrIndex ->
@@ -37,13 +36,13 @@ fun pdf(pileUp: PileUp, bandwidth: Double): PDF {
             val pileUpValue = pileUp[chrIndex]
             if (pileUpValue == 0.0F) return@forEach
             val arrayIndex = chrIndex - pileUp.range.start
-            pdfValues.addAndGet(arrayIndex, pileUpValue * lookupTable[0])
+            pdfValues.addAndGet(arrayIndex, pileUpValue * lookupTable[0].toFloat())
             for (i in 1 until windowSize) {
                 if (chrIndex + i < pileUp.range.endInclusive) {
-                    pdfValues.addAndGet(arrayIndex + i, pileUpValue * lookupTable[i])
+                    pdfValues.addAndGet(arrayIndex + i, pileUpValue * lookupTable[i].toFloat())
                 }
                 if (chrIndex - i > pileUp.range.start) {
-                    pdfValues.addAndGet(arrayIndex - i, pileUpValue * lookupTable[i])
+                    pdfValues.addAndGet(arrayIndex - i, pileUpValue * lookupTable[i].toFloat())
                 }
             }
         }
@@ -51,15 +50,13 @@ fun pdf(pileUp: PileUp, bandwidth: Double): PDF {
 
     val activeLength = activeLength(pileUp)
     val background = background(lookupTable, pileUp.sum, windowSize, activeLength)
-    // Get values as a FloatArray
-    val values = FloatArray(length) { pdfValues[it].toFloat() }
 
     // Normalize PDF values
-    val average = values.average().toFloat()
-    for (i in 0 until values.size) values[i] /= average
+    val average = pdfValues.average().toFloat()
+    for (i in 0 until pdfValues.size) pdfValues[i] /= average
     val normalizedBackground = Background(background.average / average, background.stdDev / average)
 
-    return PDF(values, normalizedBackground, pileUp.chr, pileUp.range)
+    return PDF(pdfValues, normalizedBackground, pileUp.chr, pileUp.range)
 }
 
 private fun activeLength(pileUp: PileUp): Int {
