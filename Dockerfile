@@ -3,6 +3,6 @@ COPY . /src
 WORKDIR /src
 RUN /src/gradlew clean shadowJar
 
-FROM openjdk:12-jre-alpine
+FROM openjdk:12-jdk-alpine
 ENV JAVA_OPTS="-XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap"
 COPY --from=build /src/build/*.jar /app/zpeaks.jar
