@@ -2,6 +2,8 @@ import io.*
 import model.*
 import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.*
+import runner.SingleFileZRunner
+import runner.ZRunConfig
 import step.*
 import util.*
 import java.nio.file.*
@@ -27,6 +29,28 @@ class IOTests {
     @Test
     fun `test pile-up output in bed-graph format`() {
         testPileUpFormat("ENCFF375IJW.chr22.pileup.bedGraph", SignalOutputFormat.BED_GRAPH)
+    }
+
+    @Test
+    fun `Test raw pile-up bed-graph from multiple chromosomes`() {
+        val testSamIn = TEST_BAM_2_PATH
+        val signalFilename = "${testSamIn.filenameWithoutExtension()}.signal.bedGraph"
+        val testDir = Files.createTempDirectory("zpeaks_test")
+        val signalOut = testDir.resolve(signalFilename)
+
+        val runConfig = ZRunConfig(
+            pileUpInputs = listOf(PileUpInput(testSamIn, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))),
+            chrFilter = listOf("chr1", "chr2", "chr3").map { it to null }.toMap(),
+            signalOut = SignalOutput(signalOut, SignalOutputType.RAW, SignalOutputFormat.BED_GRAPH),
+            fitMode = FitMode.SKEW
+        )
+        SingleFileZRunner(runConfig).run()
+
+        val chromosomesOut = Files.readAllLines(signalOut)
+            .map { if (it.startsWith("track")) null else it.split("\t")[0] }
+            .filter { it != null }
+            .distinct()
+        assertThat(chromosomesOut).hasSize(3)
     }
 
 }

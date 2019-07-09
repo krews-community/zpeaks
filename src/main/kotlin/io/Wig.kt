@@ -30,7 +30,7 @@ fun createSignalFile(signalOut: Path, format: SignalOutputFormat, chr: String, d
 
 fun writeWig(path: Path, chr: String, data: SignalData, signalResolution: Int = 1) {
     log.info { "Writing signal data for $chr to wig file $path..." }
-    Files.newBufferedWriter(path).use { writer ->
+    Files.newBufferedWriter(path, StandardOpenOption.CREATE, StandardOpenOption.APPEND).use { writer ->
         writer.write("track type=wiggle_0\n")
         var lastSpan: Int? = null
         iterateSignalSections(chr, data, signalResolution) { section ->
@@ -46,7 +46,7 @@ fun writeWig(path: Path, chr: String, data: SignalData, signalResolution: Int = 
 
 fun writeBedGraph(path: Path, chr: String, data: SignalData, signalResolution: Int = 1) {
     log.info { "Writing signal data for $chr to bed-graph file $path..." }
-    Files.newBufferedWriter(path).use { writer ->
+    Files.newBufferedWriter(path, StandardOpenOption.CREATE, StandardOpenOption.APPEND).use { writer ->
         writer.write("track type=bedGraph\n")
         iterateSignalSections(chr, data, signalResolution) { section ->
             writer.write("${section.chr}\t${section.start}\t${section.end}\t${section.value}\n")
