@@ -49,7 +49,7 @@ class ZPeaksCommand(val run: (RunType, ZRunConfig) -> Unit = ::run): CliktComman
         .multiple(listOf(PileUpAlgorithm.START))
     private val signalResolution: Int by option("-signalResolution",
         help="Number of decimal places to keep in outputted signal values")
-        .int().default(1)
+        .int().default(5)
     private val smoothing: Double by option("-smoothingFactor",
         help="Smoothing Factor for calculating PDF for Pile Up data during Peaks step.").double()
         .default(50.0)
