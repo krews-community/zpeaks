@@ -64,7 +64,7 @@ fun runPileUp(bam: Path, chr: String, chrLength: Int, range: IntRange, options: 
     val values = FloatArray(chrLength) { 0.0F }
     var sum = 0L
     val pileUpBounds = 0 until chrLength
-    SamReaderFactory.make().open(bam).use { reader ->
+    SamReaderFactory.make().validationStringency(ValidationStringency.SILENT).open(bam).use { reader ->
         reader.query(chr, 0, 0, false).forEach { record ->
             // If we're only using plus strand values and this record is a plus strand and
             // visa versa for minus strand, continue.
@@ -74,6 +74,7 @@ fun runPileUp(bam: Path, chr: String, chrLength: Int, range: IntRange, options: 
 
             // If the record is junk, continue
             if (record.end < record.start || record.end - record.start > LENGTH_LIMIT) return@forEach
+	    if (record.referenceName.equals("*")) return@forEach
 
             val start = pileUpStart(record, pileUpBounds, options.forwardShift, options.reverseShift)
             when (options.pileUpAlgorithm) {
