@@ -19,7 +19,7 @@ fun prepBams(bams: List<Path>, chrFilter: Map<String, IntRange?>? = null): Map<S
     log.info { "Collecting chromosome metadata and checking BAMs for indexes..." }
     val chrLengths = mutableMapOf<String, Int>()
     for(bam in bams) {
-        val samReader = SamReaderFactory.makeDefault()
+        val samReader = SamReaderFactory.makeDefault().validationStringency(ValidationStringency.SILENT)
             .enable(SamReaderFactory.Option.INCLUDE_SOURCE_IN_RECORDS)
             .open(bam)
         samReader.use { reader ->
