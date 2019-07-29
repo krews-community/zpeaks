@@ -16,7 +16,7 @@ private val Double.printValue: String get() = "%.2f".format(this)
  */
 fun writeSkewSubPeaksBed(path: Path, chr: String, subPeaks: Iterable<SubPeak<SkewGaussianParameters>>) {
     log.info { "Writing skew sub-peaks data for $chr to bed file $path" }
-    Files.newBufferedWriter(path).use { writer ->
+    Files.newBufferedWriter(path, StandardOpenOption.CREATE, StandardOpenOption.APPEND).use { writer ->
         for (subPeak in subPeaks) {
             val region = subPeak.region
             val name = bedPeakName(chr, region)
@@ -31,7 +31,7 @@ fun writeSkewSubPeaksBed(path: Path, chr: String, subPeaks: Iterable<SubPeak<Ske
 
 fun writeStandardSubPeaksBed(path: Path, chr: String, subPeaks: Iterable<SubPeak<StandardGaussianParameters>>) {
     log.info { "Writing Standard Sub-Peaks data for $chr to bed file $path" }
-    Files.newBufferedWriter(path).use { writer ->
+    Files.newBufferedWriter(path, StandardOpenOption.CREATE, StandardOpenOption.APPEND).use { writer ->
         for (subPeak in subPeaks) {
             val region = subPeak.region
             val name = bedPeakName(chr, region)
