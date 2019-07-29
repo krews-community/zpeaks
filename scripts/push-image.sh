@@ -17,3 +17,6 @@ if [[ -z "$1" ]]; then
 fi
 
 docker push ${DOCKER_ORG}/${IMAGE_NAME}:${1}
+
+docker tag ${DOCKER_ORG}/${IMAGE_NAME}:${1} ${DOCKER_ORG}/${IMAGE_NAME}:latest
+docker push ${DOCKER_ORG}/${IMAGE_NAME}:latest
