@@ -95,7 +95,7 @@ class ZPeaksCommand(val run: (RunType, ZRunConfig, Boolean) -> Unit = ::run): Cl
             }
         } else {
             // Checked at start
-            throw IllegalStateException()
+            throw IllegalStateException("Both bamsIn and pileupsIn are empty. (This is a bug.)")
         }
 
         val isSingle = if (!bamsIn.isEmpty()) {
@@ -104,7 +104,7 @@ class ZPeaksCommand(val run: (RunType, ZRunConfig, Boolean) -> Unit = ::run): Cl
             pileupsIn.size == 1
         } else {
             // Checked at start
-            throw IllegalStateException()
+            throw IllegalStateException("Both bamsIn and pileupsIn are empty. (This is a bug.)")
         }
 
         val runConfig = ZRunConfig(pileUpRunner, chrFilter, signalOut, peaksOut, smoothing,

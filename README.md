@@ -58,17 +58,18 @@ followed by the arguments you need:
 | Name |  Description | Default |
 |---|---|---|
 | `-runType` | Run type if multiple files are given. "top-down" or "bottom-up" | bottom-up |
-| `-bamIn`| Input Sam or Bam alignment file. | |
+| `-bamIn`| Input Sam or Bam alignment file. Cannot be used with -pileupIn. | |
+| `-pileupIn`| Input bedGraph pileup. Cannot be used with -pileupIn. | |
 | `-chrFilter` | Chromosome Filter File. See Below. | |
 | `-signalOut`| Output Signal File. Enables signal output. | |
 | `-signalOutType`| Output "raw" and "smoothed" Pile-Up data to the signal file. | smoothed |
 | `-signalOutFormat`| Output Signal File to "wig" or "bed-graph" file | bed-graph |
 | `-peaksOut`| Output peaks bed file. | |
-| `-strand`| Strand to count during pile-up. "plus", "minus", or "both" | both |
+| `-strand`| Strand to count during pile-up. "plus", "minus", or "both". Ignored if not using -bamIn. | both |
+| `-forwardShift`| During pile-up, shift the forward strand by this amount. Can be positive or negative. Ignored if not using -bamIn. | 0 |
+| `-reverseShift`| During pile-up, shift the reverse strand by this amount. Can be positive or negative. Ignored if not using -bamIn. | 0 |
+| `-pileUpAlgorithm`| Algorithm used to select values during pile-up. "start", "midpoint", or "length". Ignored if not using -bamIn. | start |
 | `-signalResolution`| Number of decimal places to keep in outputted signal values. | 1 |
-| `-forwardShift`| During pile-up, shift the forward strand by this amount. Can be positive or negative. | 0 |
-| `-reverseShift`| During pile-up, shift the reverse strand by this amount. Can be positive or negative. | 0 |
-| `-pileUpAlgorithm`| Algorithm used to select values during pile-up. "start", "midpoint", or "length" | start |
 | `-smoothingFactor` | Smoothing factor for calculating PDF for pile-up data during peaks step. | 50.0 |
 | `-threshold`| Threshold used during peak calling. | 6.0 |
 | `-fitMode`| Sub-peak fitting modes. "skew" or "standard" | skew |
@@ -91,6 +92,22 @@ For example, the following will calculate peaks for chromosome 1, 10-15 million 
 chr1
 chr2    10000000-15000000
 chr3    0-3000000
+```
+
+## Output
+
+### Peaks bed file
+
+The output peaks file contains the locations of fitted gaussian curves in BED format with the amplitude and skew (if applicable). A random peak name is assigned to each peak. The current format of the output peaks file is:
+
+When -fitMode is set to "skew":
+```
+chrom   start   end peak_name   amplitude#skew
+```
+
+When -fitMode is set to "standard":
+```
+chrom   start   end peak_name   amplitude
 ```
 
 ## For Contributors
