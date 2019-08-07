@@ -15,7 +15,7 @@ class CliTests {
         val signalOut = testDir.resolve("testSignalOut.bed")
         val peaksOut = testDir.resolve("testPeaksOut.bed")
 
-        val mockRun = spyk<(RunType, ZRunConfig) -> Unit>()
+        val mockRun = spyk<(RunType, ZRunConfig, Boolean) -> Unit>()
         val args =
             """
             -bamIn=$MULTI_BAM_1_PATH -strand=both -pileUpAlgorithm=start -forwardShift=5 -reverseShift=10
@@ -29,10 +29,10 @@ class CliTests {
         ZPeaksCommand(run = mockRun).main(args)
 
         val expectedRunConfig = ZRunConfig(
-            pileUpInputs = listOf(
+            pileUpRunner = BamPileUpRunner(listOf(
                 PileUpInput(MULTI_BAM_1_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START, 5, 10)),
                 PileUpInput(MULTI_BAM_2_PATH, PileUpOptions(Strand.PLUS, PileUpAlgorithm.LENGTH, -5, 15))
-            ),
+            )),
             chrFilter = mapOf("chr22" to (30000000 until 30500000)),
             signalOut = SignalOutput(signalOut, SignalOutputType.RAW, SignalOutputFormat.WIG, signalResolution = 2),
             peaksOut = peaksOut,
@@ -40,7 +40,7 @@ class CliTests {
             threshold = 7.0,
             parallelism = 4
         )
-        verify { mockRun(any(), expectedRunConfig) }
+        verify { mockRun(any(), expectedRunConfig, false) }
     }
 
 }

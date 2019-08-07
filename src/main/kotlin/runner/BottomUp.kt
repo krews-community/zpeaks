@@ -11,8 +11,7 @@ class BottomUpZRunner(runConfig: ZRunConfig) : ZRunner("Bottom-Up", runConfig) {
         log.info { "Creating aggregate pile-up for $chr..." }
         val aggregatePileUpData = FloatArray(chrLength)
         var sum = 0.0
-        for (pileUpInput in pileUpInputs) {
-            val pileUp = runPileUp(pileUpInput.bam, chr, chrLength, range, pileUpInput.options)
+        for (pileUp in pileUpRunner.getPileUps(chr, chrLength, range)) {
             for (index in 0 until chrLength) {
                 val value = pileUp.scaledValue(index)
                 aggregatePileUpData[index] += value

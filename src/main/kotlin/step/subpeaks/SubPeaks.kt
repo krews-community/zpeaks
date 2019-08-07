@@ -41,8 +41,12 @@ abstract class Fitter<T : GaussianParameters> (private val name: String, val opt
         val subPeaks = Collections.synchronizedList(mutableListOf<SubPeak<T>>())
         runParallel("$name on $chr", "peaks", peaks) { peak ->
             val peakValues = (peak.start..peak.end).map { pdf[it].toDouble() }
-            subPeaks += fitPeak(peakValues, peak.start).flatMap { fit ->
-                fit.subPeaks
+            try {
+                subPeaks += fitPeak(peakValues, peak.start).flatMap { fit ->
+                    fit.subPeaks
+                }
+            } catch(e: Exception) {
+                println("When fitting peak $peak, caught exception: $e")
             }
         }
         subPeaks.sortBy { it.region.start }
@@ -117,7 +121,8 @@ fun splitIndexForFit(values: List<Double>): Int? {
     val localMinima = localMinima(values)
     val splitIndex = localMinima
         .filter { (index, _) -> index > bufferSize && index < values.size - bufferSize }
-        .minBy { (_, value) -> value }!!.first
+        .minBy { (_, value) -> value }?.first
+        ?: return null
 
     if (values.size <= SUB_PEAKS_HARD_MAX) {
         val minMaxRatio = values[splitIndex] / values.max()!!

@@ -19,8 +19,7 @@ class TopDownZRunner(runConfig: ZRunConfig) : ZRunner("Top-Down", runConfig) {
         val allPeaks = mutableListOf<List<Region>>()
         allCurrentChrPeaks = allPeaks
 
-        for (pileUpInput in pileUpInputs) {
-            val pileUp = runPileUp(pileUpInput.bam, chr, chrLength, range, pileUpInput.options)
+        for (pileUp in pileUpRunner.getPileUps(chr, chrLength, range)) {
             val pdf = pdf(pileUp, smoothing)
             val peaks = callPeaks(pdf, threshold)
             allPeaks += peaks

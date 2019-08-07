@@ -3,6 +3,10 @@ package util
 import com.google.common.base.CaseFormat
 import mu.KotlinLogging
 import org.apache.commons.math3.util.FastMath
+import java.io.DataInputStream
+import java.nio.Buffer
+import java.nio.CharBuffer
+import java.nio.file.Path
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -58,3 +62,28 @@ val Enum<*>.lowerHyphenName: String get() = CaseFormat.UPPER_UNDERSCORE.to(CaseF
 fun Double.pow(x: Int) = FastMath.pow(this, x)
 
 val IntRange.length get() = this.endInclusive - this.start + 1
+
+const val BIGWIG_MAGIC = 0x26FC_8F88
+
+fun isBigWig(path: Path): Boolean {
+    val magic = DataInputStream(path.toFile().inputStream()).readInt()
+    return magic == BIGWIG_MAGIC || magic == Integer.reverseBytes(BIGWIG_MAGIC)
+}
+
+fun isBedGraph(path: Path): Boolean {
+    // If this is a binary file, we don't want to read too much
+    val head = CharBuffer.allocate(1000)
+    path.toFile().bufferedReader().read(head)
+    (head as Buffer).position(0)
+    head.lineSequence().forEach {
+        if (it.startsWith("track")) {
+            return@forEach
+        }
+        val split = it.split("\\s".toRegex())
+        if (split.size != 4) {
+            return false
+        }
+        return split[1].toIntOrNull() != null && split[2].toIntOrNull() != null && split[3].toFloatOrNull() != null
+    }
+    return false
+}
