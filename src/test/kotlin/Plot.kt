@@ -72,7 +72,7 @@ class Plot {
 }
 
 private fun simpleZRunConfig(pileUpInputs: List<PileUpInput>) = ZRunConfig(
-    pileUpInputs.toList(), null, null, null, 50.0, 6.0)
+    BamPileUpRunner(pileUpInputs), null, null, null, 50.0, 6.0)
 
 private fun singleFileConfig() = simpleZRunConfig(listOf(PileUpInput(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))))
 
@@ -88,7 +88,6 @@ private fun bigMultiFileConfig() = simpleZRunConfig(
 private fun plotPdf(zRunner: ZRunner, range: IntRange) {
     val displayRange = range withNSteps 1000
 
-    zRunner.prepBams()
     val pileUp = zRunner.pileUp(CHR_22, CHR_22_SIZE, range)
     val bpUnits = BPUnits.MBP
     val pileUpChartData = bpData(displayRange, bpUnits) { pileUp[it].toDouble() }
@@ -114,7 +113,6 @@ private fun plotPdf(zRunner: ZRunner, range: IntRange) {
 }
 
 private fun <T : GaussianParameters> plotSubPeaks(zRunner: ZRunner, range: IntRange, fitter: Fitter<T>) {
-    zRunner.prepBams()
     val pileUp = zRunner.pileUp(CHR_22, CHR_22_SIZE, range)
     val pdf = zRunner.pdf(pileUp)
     val peaks = zRunner.peaks(pdf)

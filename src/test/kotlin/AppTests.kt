@@ -20,9 +20,8 @@ class AppTests {
         val testDir = Files.createTempDirectory("zpeaks_test")
         var peaksOut = testDir.resolve(peaksFilename)
 
-        val runConfig = ZRunConfig(listOf(PileUpInput(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))))
+        val runConfig = ZRunConfig(BamPileUpRunner(listOf(PileUpInput(TEST_BAM_PATH, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START)))))
         val zRunner = SingleFileZRunner(runConfig)
-        zRunner.prepBams()
         val pileUp = zRunner.pileUp(CHR_22, CHR_22_SIZE, 10_000_000 until 15_000_000)
 
         val pdf = zRunner.pdf(pileUp)

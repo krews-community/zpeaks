@@ -39,7 +39,7 @@ class IOTests {
         val signalOut = testDir.resolve(signalFilename)
 
         val runConfig = ZRunConfig(
-            pileUpInputs = listOf(PileUpInput(testSamIn, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))),
+            pileUpRunner = BamPileUpRunner(listOf(PileUpInput(testSamIn, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START)))),
             chrFilter = listOf("chr1", "chr2", "chr3").map { it to null }.toMap(),
             signalOut = SignalOutput(signalOut, SignalOutputType.RAW, SignalOutputFormat.BED_GRAPH),
             fitMode = FitMode.SKEW

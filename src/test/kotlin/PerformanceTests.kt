@@ -34,7 +34,7 @@ class PerformanceTest {
         val peaksOut = testDir.resolve(peaksFilename)
 
         val runConfig = ZRunConfig(
-            pileUpInputs = listOf(PileUpInput(testSamIn, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START))),
+            pileUpRunner = BamPileUpRunner(listOf(PileUpInput(testSamIn, PileUpOptions(Strand.BOTH, PileUpAlgorithm.START)))),
             signalOut = SignalOutput(signalOut, SignalOutputType.SMOOTHED, SignalOutputFormat.BED_GRAPH),
             peaksOut = peaksOut,
             fitMode = FitMode.SKEW
@@ -54,7 +54,7 @@ class PerformanceTest {
         val testDir = Files.createTempDirectory("zpeaks_test")
         val peaksOut = testDir.resolve(peaksFilename)
         val runConfig = ZRunConfig(
-            pileUpInputs = pileUpInputs,
+            pileUpRunner = BamPileUpRunner(pileUpInputs),
             chrFilter = mapOf(CHR_22 to (30_000_000 until 32_000_000)),
             peaksOut = peaksOut,
             fitMode = FitMode.SKEW
@@ -72,7 +72,7 @@ class PerformanceTest {
         val testDir = Files.createTempDirectory("zpeaks_test")
         val peaksOut = testDir.resolve(peaksFilename)
         val runConfig = ZRunConfig(
-            pileUpInputs = pileUpInputs,
+            pileUpRunner = BamPileUpRunner(pileUpInputs),
             chrFilter = mapOf(CHR_22 to (30_000_000 until 30_500_000)),
             peaksOut = peaksOut,
             fitMode = FitMode.SKEW

@@ -23,7 +23,7 @@ class PileUpTests {
         val multiPileUpInputs =
             listOf(MULTI_BAM_1_PATH, MULTI_BAM_2_PATH, MULTI_BAM_3_PATH, MULTI_BAM_4_PATH)
             .map { PileUpInput(it, pileUpOptions) }
-        val multiRunner = BottomUpZRunner(ZRunConfig(multiPileUpInputs))
+        val multiRunner = BottomUpZRunner(ZRunConfig(BamPileUpRunner(multiPileUpInputs)))
         val pileUpsB = multiRunner.pileUp(CHR_22, CHR_22_SIZE, 0 until CHR_22_SIZE)
         assertThat(pileUpsB.chr).isEqualTo(CHR_22)
         val maxBetween0And10mB = pileUpsB.maxBetween(0, 10_000_000)

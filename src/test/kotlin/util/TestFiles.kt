@@ -21,6 +21,8 @@ const val CHR_22 = "chr22"
 const val CHR_22_SIZE = 48_000_000
 val CHR_FILTER_PATH = getResourcePath("chr_filter.txt")
 
+val MULTICHROM_PILEUP_BEDGRAPH = getResourcePath("multiChrom.pileup.bedGraph")
+
 interface Junk
 
 fun getResourcePath(relativePath: String): Path {
