@@ -9,6 +9,8 @@ import util.*
 import runner.*
 import java.lang.IllegalStateException
 import java.nio.file.Path
+import htsjdk.samtools.SAMRecord
+import kotlin.math.abs
 
 
 class ZPeaksCommand(val run: (RunType, ZRunConfig, Boolean) -> Unit = ::run): CliktCommand() {
@@ -64,11 +66,13 @@ class ZPeaksCommand(val run: (RunType, ZRunConfig, Boolean) -> Unit = ::run): Cl
         .default(FitMode.SKEW)
     private val parallelism: Int? by option("-parallelism", help="Number of threads to use for parallel parts. " +
             "Defaults to number of cores on machine. Parallelism is NOT per-chromosome. Any amount is valid.").int()
+    private val atacNucleosome: Boolean by option("-nucleosome", help = "If set, call nucleosome positions " +
+            "from ATAC-seq data. Keeps only paired reads which are between 150-300 bp apart.").flag()
 
     override fun run() {
         if (signalOutPath == null && peaksOut == null)
             throw Exception("One of the following must be set: -signalOut or -peaksOut")
-        if ((bamsIn.isEmpty() && pileupsIn.isEmpty()) || (!bamsIn.isEmpty() && !pileupsIn.isEmpty()))
+        if ((bamsIn.isEmpty() && pileupsIn.isEmpty()) || (bamsIn.isNotEmpty() && pileupsIn.isNotEmpty()))
             throw Exception("One (and only one) of the following must be set: -bamIn or -pileupIn")
         val signalOut =
             if (signalOutPath != null) SignalOutput(signalOutPath!!, signalOutType, signalOutFormat, signalResolution)
@@ -76,35 +80,37 @@ class ZPeaksCommand(val run: (RunType, ZRunConfig, Boolean) -> Unit = ::run): Cl
 
         val chrFilter = if (chrFilterPath != null) parseChrFilter(chrFilterPath!!) else null
 
-        val pileUpRunner: PileUpRunner = if (!bamsIn.isEmpty()) {
-            val pileUpInputs = mutableListOf<PileUpInput>()
-            for ((samIndex, sam) in bamsIn.withIndex()) {
-                val strand = strands.getOrElse(samIndex) { strands.last() }
-                val pileUpAlgorithm = pileUpAlgorithms.getOrElse(samIndex) { pileUpAlgorithms.last() }
-                val forwardShift = forwardShifts.getOrElse(samIndex) { forwardShifts.last() }
-                val reverseShift = reverseShifts.getOrElse(samIndex) { reverseShifts.last() }
-                val pileUpOptions = PileUpOptions(strand, pileUpAlgorithm, forwardShift, reverseShift)
-                pileUpInputs += PileUpInput(sam, pileUpOptions)
+        val pileUpRunner: PileUpRunner = when {
+            bamsIn.isNotEmpty() -> {
+                val pileUpInputs = mutableListOf<PileUpInput>()
+                for ((samIndex, sam) in bamsIn.withIndex()) {
+                    val strand = strands.getOrElse(samIndex) { strands.last() }
+                    val pileUpAlgorithm = pileUpAlgorithms.getOrElse(samIndex) { pileUpAlgorithms.last() }
+                    val forwardShift = forwardShifts.getOrElse(samIndex) { forwardShifts.last() }
+                    val reverseShift = reverseShifts.getOrElse(samIndex) { reverseShifts.last() }
+                    val filter: (record: SAMRecord) -> Boolean = if (atacNucleosome) { record ->
+                        val distance = abs(record.alignmentStart - record.mateAlignmentStart)
+                        distance in 147..291
+                    } else { _ -> true }
+                    val pileUpOptions = PileUpOptions(strand, pileUpAlgorithm, forwardShift, reverseShift, filter)
+                    pileUpInputs += PileUpInput(sam, pileUpOptions)
+                }
+                BamPileUpRunner(pileUpInputs)
             }
-            BamPileUpRunner(pileUpInputs)
-        } else if (!pileupsIn.isEmpty()) {
-            when {
+            pileupsIn.isNotEmpty() -> when {
                 pileupsIn.all { isBigWig(it) } -> throw Exception("bigWig support is not supported yet")
                 pileupsIn.all { isBedGraph(it) } -> BedGraphPileUpRunner(pileupsIn)
                 else -> throw Exception("All of -pileupIn must be a bedGraph")
             }
-        } else {
-            // Checked at start
-            throw IllegalStateException("Both bamsIn and pileupsIn are empty. (This is a bug.)")
+            else -> // Checked at start
+                throw IllegalStateException("Both bamsIn and pileupsIn are empty. (This is a bug.)")
         }
 
-        val isSingle = if (!bamsIn.isEmpty()) {
-            bamsIn.size == 1
-        } else if (!pileupsIn.isEmpty()) {
-            pileupsIn.size == 1
-        } else {
-            // Checked at start
-            throw IllegalStateException("Both bamsIn and pileupsIn are empty. (This is a bug.)")
+        val isSingle = when {
+            bamsIn.isNotEmpty() -> bamsIn.size == 1
+            pileupsIn.isNotEmpty() -> pileupsIn.size == 1
+            else -> // Checked at start
+                throw IllegalStateException("Both bamsIn and pileupsIn are empty. (This is a bug.)")
         }
 
         val runConfig = ZRunConfig(pileUpRunner, chrFilter, signalOut, peaksOut, smoothing,

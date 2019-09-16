@@ -1,11 +1,13 @@
 package step
 
-import htsjdk.samtools.*
-import model.*
+import htsjdk.samtools.SAMRecord
+import htsjdk.samtools.SamReaderFactory
+import htsjdk.samtools.ValidationStringency
+import model.ChromBounds
+import model.PileUpInput
+import model.Strand
 import mu.KotlinLogging
-import util.*
 import java.nio.file.Path
-import kotlin.math.sqrt
 
 
 private val log = KotlinLogging.logger {}
@@ -26,26 +28,29 @@ const val LENGTH_LIMIT = 100_000
 /**
  * @param strand: Strand that we want to count using pile-up algorithm
  * @param pileUpAlgorithm: Algorithm we use to choose the values that we pile up.
- * @param forwardShift: shifts forward (plus) strand by this amount
- * @param reverseShift: shifts reverse (minus) strand by this amount
+ * @param forwardShift: Shifts forward (plus) strand by this amount.
+ * @param reverseShift: Shifts reverse (minus) strand by this amount.
+ * @param filter: Only pile up reads which evaluate to true when passed to this function.
  */
 data class PileUpOptions(
     val strand: Strand,
     val pileUpAlgorithm: PileUpAlgorithm,
     val forwardShift: Int = 0,
-    val reverseShift: Int = 0
+    val reverseShift: Int = 0,
+    val filter: (record: SAMRecord) -> Boolean = { _ -> true }
 )
 
 data class BamPileUpRunner(
     val pileUpInputs: List<PileUpInput>
 ) : PileUpRunner {
-    var prepped = false
 
-    fun ensurePrepped() {
+    private var prepped = false
+    private fun ensurePrepped() {
         if (!prepped) {
             getChromsWithBounds()
         }
     }
+
     override fun getChromsWithBounds(chrFilter: Map<String, IntRange?>?): Map<String, ChromBounds> {
         val ret = prepBams(pileUpInputs.map { it.bam }, chrFilter)
         prepped = true
@@ -58,8 +63,8 @@ data class BamPileUpRunner(
             yield(runPileUp(pileUpInput.bam, chr, chrLength, range, pileUpInput.options))
         }
     }
-}
 
+}
 
 /**
  * Reads a SAM or BAM file and creates a pile-up representation in memory.
@@ -81,7 +86,8 @@ fun runPileUp(bam: Path, chr: String, chrLength: Int, range: IntRange, options: 
 
             // If the record is junk, continue
             if (record.end < record.start || record.end - record.start > LENGTH_LIMIT) return@forEach
-            if (record.referenceName.equals("*")) return@forEach
+            if (record.referenceName == "*") return@forEach
+            if (!options.filter(record)) return@forEach
 
             val start = pileUpStart(record, pileUpBounds, options.forwardShift, options.reverseShift)
             when (options.pileUpAlgorithm) {
@@ -142,7 +148,7 @@ private fun pileUpEnd(record: SAMRecord, bounds: IntRange, forwardShift: Int, re
  */
 private fun Int.withinBounds(bounds: IntRange) =
     when {
-        this < bounds.start -> bounds.start
-        this > bounds.endInclusive -> bounds.endInclusive
+        this < bounds.first -> bounds.first
+        this > bounds.last -> bounds.last
         else -> this
     }

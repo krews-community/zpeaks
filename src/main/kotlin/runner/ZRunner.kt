@@ -30,6 +30,7 @@ abstract class ZRunner(private val name: String, protected val runConfig: ZRunCo
     open fun peaks(pdf: PDF): List<Region> = with(runConfig) { callPeaks(pdf, threshold) }
 
     fun run() = with(runConfig) {
+
         if (parallelism != null) {
             System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", parallelism.toString())
         }
