@@ -18,7 +18,9 @@ enum class PileUpAlgorithm {
     // Use the mid-point between start and end for each alignment. *Paired End Only
     MID_POINT,
     // Use every BP between start and end for each alignment. *Paired End Only
-    LENGTH
+    LENGTH,
+    // Use only the end of each alignment
+    END
 }
 
 // When using the LENGTH pile-up algorithm we will not include values for lengths that are larger than this value.
@@ -111,6 +113,11 @@ fun runPileUp(bam: Path, chr: String, chrLength: Int, range: IntRange, options: 
                     }
                     sum += length
                 }
+	        PileUpAlgorithm.END -> {
+		    val end = pileUpEnd(record, pileUpBounds, options.forwardShift, options.reverseShift)
+		    values[end]++
+		    sum++
+	        }
             }
         }
     }
