@@ -89,7 +89,7 @@ fun runPileUp(bam: Path, chr: String, chrLength: Int, range: IntRange, options: 
             if (record.referenceName == "*") return@forEach
             if (!options.filter(record)) return@forEach
 
-            val start = pileUpStart(record, pileUpBounds, options.forwardShift, options.reverseShift)
+            var start = pileUpStart(record, pileUpBounds, options.forwardShift, options.reverseShift)
             when (options.pileUpAlgorithm) {
                 PileUpAlgorithm.START -> {
                     values[start]++
@@ -102,7 +102,9 @@ fun runPileUp(bam: Path, chr: String, chrLength: Int, range: IntRange, options: 
                     sum++
                 }
                 PileUpAlgorithm.LENGTH -> {
-                    val end = pileUpEnd(record, pileUpBounds, options.forwardShift, options.reverseShift)
+                    val readEnd = pileUpEnd(record, pileUpBounds, options.forwardShift, options.reverseShift)
+		    val end = if (readEnd > start) readEnd else start
+		    if (readEnd < start) start = readEnd
                     val length = end - start
                     for (i in start until end) {
                         values[i]++
