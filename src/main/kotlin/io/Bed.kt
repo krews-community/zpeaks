@@ -9,7 +9,7 @@ import java.util.*
 
 private val log = KotlinLogging.logger {}
 
-private val Double.printValue: String get() = "%.2f".format(this)
+private val Double.printValue: String get() = "%.15f".format(this)
 
 /**
  * Writes part of bed file for given chromosome and sub-peaks
