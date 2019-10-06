@@ -6,6 +6,7 @@ import step.*
 import util.*
 import java.util.*
 import kotlin.math.pow
+import kotlin.math.sqrt
 
 private val log = KotlinLogging.logger {}
 
@@ -59,11 +60,11 @@ abstract class ReplicatedFitter<T : GaussianParameters> (private val name: Strin
                 ReplicatedSubPeak<T>(
                     region = it.region, score = it.score, gaussianParameters = it.gaussianParameters,
                     replicationScore = values.map { replicate ->
-                        thisRemoved.foldIndexed(0.0, { index, acc, it ->
+                        sqrt(thisRemoved.foldIndexed(0.0, { index, acc, it ->
                             acc + (it - replicate[index]).pow(2.0)
                         }) - currentValues.foldIndexed(0.0, { index, acc, it ->
                             acc + (it - replicate[index]).pow(2.0)
-                        })
+                        }))
                     }.average()
                 )
             }
