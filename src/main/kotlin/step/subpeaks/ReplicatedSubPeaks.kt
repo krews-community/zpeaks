@@ -5,6 +5,7 @@ import mu.KotlinLogging
 import step.*
 import util.*
 import java.util.*
+import kotlin.math.pow
 
 private val log = KotlinLogging.logger {}
 
@@ -59,13 +60,9 @@ abstract class ReplicatedFitter<T : GaussianParameters> (private val name: Strin
                     region = it.region, score = it.score, gaussianParameters = it.gaussianParameters,
                     replicationScore = values.map { replicate ->
                         thisRemoved.foldIndexed(0.0, { index, acc, it ->
-                            acc + (
-                                if (replicate[index] > currentValues[index]) {
-                                   currentValues[index] - it - (replicate[index] - currentValues[index])
-                                } else {
-                                    replicate[index] - it - (currentValues[index] - replicate[index])
-                                }
-                            )
+                            acc + (it - replicate[index]).pow(2.0)
+                        }) - currentValues.foldIndexed(0.0, { index, acc, it ->
+                            acc + (it - replicate[index]).pow(2.0)
                         })
                     }.average()
                 )
