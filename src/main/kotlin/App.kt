@@ -64,6 +64,8 @@ class ZPeaksCommand(val run: (RunType, ZRunConfig, Boolean) -> Unit = ::run): Cl
     private val fitMode: FitMode by option("-fitMode", help="Sub-Peak Fitting Modes.")
         .choice(FitMode.values().associateBy { it.lowerHyphenName })
         .default(FitMode.SKEW)
+    private val replicated: Boolean by option("-replicated", help="Treat each input bam as a separate replicate"
+            + " and fit them together.").flag()
     private val parallelism: Int? by option("-parallelism", help="Number of threads to use for parallel parts. " +
             "Defaults to number of cores on machine. Parallelism is NOT per-chromosome. Any amount is valid.").int()
     private val atacNucleosome: Boolean by option("-nucleosome", help = "If set, call nucleosome positions " +
@@ -115,7 +117,10 @@ class ZPeaksCommand(val run: (RunType, ZRunConfig, Boolean) -> Unit = ::run): Cl
 
         val runConfig = ZRunConfig(pileUpRunner, chrFilter, signalOut, peaksOut, smoothing,
             threshold, fitMode, parallelism)
-        run(runType, runConfig, isSingle)
+        if (replicated)
+            ReplicatedRunner(runConfig).run()
+        else
+            run(runType, runConfig, isSingle)
     }
 }
 

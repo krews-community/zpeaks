@@ -1,13 +1,10 @@
 package step.subpeaks
 
 import model.*
-import mu.KotlinLogging
 import org.apache.commons.math3.util.FastMath.*
 import step.*
 import util.*
 import java.util.*
-
-private val log = KotlinLogging.logger {}
 
 interface GaussianParameters {
     var amplitude: Double
@@ -31,7 +28,7 @@ data class SubPeak<T : GaussianParameters>(
 // Minimum number of values in a peak that are worth evaluating
 const val MIN_PEAK_VALUES = 10
 
-abstract class Fitter<T : GaussianParameters> (private val name: String, val optimizer: Optimizer<T>) {
+abstract class Fitter<T : GaussianParameters> (private val name: String, open val optimizer: Optimizer<T>) {
 
     /**
      * Do sub-peak fits for all peaks on a single chromosome

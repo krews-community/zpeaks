@@ -51,7 +51,7 @@ object StandardOptimizer : Optimizer<StandardGaussianParameters>() {
     override fun calculateJacobian(parameters: DoubleArray, curveLength: Int): Array<DoubleArray> {
         val jacobian = Array(curveLength) { DoubleArray(parameters.size) }
         for (j in 0 until curveLength) {
-            for (k in 0 until parameters.size step 3) {
+            for (k in parameters.indices step 3) {
                 val a = parameters[k] // amplitude
                 val m = parameters[k + 1] // mean
                 val u = parameters[k + 2] // standard deviation
@@ -74,7 +74,7 @@ object StandardOptimizer : Optimizer<StandardGaussianParameters>() {
         candidateGaussians: List<CandidateGaussian<StandardGaussianParameters>>
     ): RealVector {
         val validated = parameters.copy()
-        for (j in 0 until candidateGaussians.size) {
+        for (j in candidateGaussians.indices) {
             val amplitude = parameters.getEntry(j * 3)
             val mean = parameters.getEntry(j * 3 + 1)
             val stdDev = parameters.getEntry(j * 3 + 2)

@@ -44,6 +44,38 @@ fun writeStandardSubPeaksBed(path: Path, chr: String, subPeaks: Iterable<SubPeak
 }
 
 /**
+ * Writes part of bed file for given chromosome and sub-peaks
+ */
+fun writeReplicatedSkewSubPeaksBed(path: Path, chr: String, subPeaks: Iterable<ReplicatedSubPeak<SkewGaussianParameters>>) {
+    log.info { "Writing skew sub-peaks data for $chr to bed file $path" }
+    Files.newBufferedWriter(path, StandardOpenOption.CREATE, StandardOpenOption.APPEND).use { writer ->
+        for (subPeak in subPeaks) {
+            val region = subPeak.region
+            val name = bedPeakName(chr, region)
+            val amplitude = subPeak.gaussianParameters.amplitude
+            val shape = subPeak.gaussianParameters.shape
+            val score = "${amplitude.printValue}#${shape.printValue}#${subPeak.replicationScore.printValue}"
+            writer.write("$chr\t${region.start}\t${region.end}\t$name\t$score\n")
+        }
+    }
+    log.info { "Skew sub-peaks data write complete!" }
+}
+
+fun writeReplicatedStandardSubPeaksBed(path: Path, chr: String, subPeaks: Iterable<ReplicatedSubPeak<StandardGaussianParameters>>) {
+    log.info { "Writing Standard Sub-Peaks data for $chr to bed file $path" }
+    Files.newBufferedWriter(path, StandardOpenOption.CREATE, StandardOpenOption.APPEND).use { writer ->
+        for (subPeak in subPeaks) {
+            val region = subPeak.region
+            val name = bedPeakName(chr, region)
+            val amplitude = subPeak.gaussianParameters.amplitude
+            val score = "${amplitude.printValue}#${subPeak.replicationScore.printValue}"
+            writer.write("$chr\t${region.start}\t${region.end}\t$name\t$score\n")
+        }
+    }
+    log.info { "Standard Sub-Peaks data write complete!" }
+}
+
+/**
  * Creates a small-ish name unique for each chromosome range
  * The name consists the chromosome name plus a base64 encoded (and therefor shrunken) version of the range
  */
