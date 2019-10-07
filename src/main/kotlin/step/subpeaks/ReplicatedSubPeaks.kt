@@ -88,7 +88,9 @@ abstract class ReplicatedFitter<T : GaussianParameters> (private val name: Strin
         val averageValues: List<Double> = normalizedValues.fold(List(normalizedValues[0].size) { 0.0 }, { acc, it ->
             it.mapIndexed { index, element -> acc[index] + element }
         }).map { it / values.size }
-        return fitPeak(averageValues, offset).map { contribution(normalizedValues, it) }
+        return fitPeak(averageValues, offset).map {
+            contribution(normalizedValues.map { v -> v.slice(IntRange(it.region.start - offset, it.region.end - offset - 1)) }, it)
+        }
 
     }
 
