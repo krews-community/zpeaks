@@ -1,14 +1,11 @@
 package step.subpeaks
 
 import model.*
-import mu.KotlinLogging
 import step.*
 import util.*
 import java.util.*
 import kotlin.math.pow
 import kotlin.math.sqrt
-
-private val log = KotlinLogging.logger {}
 
 data class ReplicatedFit<T : GaussianParameters>(
     val region: Region,
@@ -50,14 +47,14 @@ abstract class ReplicatedFitter<T : GaussianParameters> (private val name: Strin
     private fun contribution(values: List<List<Double>>, fitResult: Fit<T>): ReplicatedFit<T> {
         val parameters = fitResult.subPeaks.sortedByDescending { it.score }
         val currentValues = optimizer.calculateCurve(parameters.map { it.gaussianParameters }, values[0].size, fitResult.region.start)
-        return ReplicatedFit<T>(
+        return ReplicatedFit(
             region = fitResult.region, background = fitResult.background, error = fitResult.error,
             subPeaks = fitResult.subPeaks.map {
                 val thisCurve = optimizer.calculateCurve(listOf(it.gaussianParameters), values[0].size, fitResult.region.start)
-                val thisRemoved = currentValues.mapIndexed { index, it ->
-                    it - thisCurve[index]
+                val thisRemoved = currentValues.mapIndexed { index, value ->
+                    value - thisCurve[index]
                 }
-                ReplicatedSubPeak<T>(
+                ReplicatedSubPeak(
                     region = it.region, score = it.score, gaussianParameters = it.gaussianParameters,
                     replicationScore = values.map { replicate ->
                         sqrt(thisRemoved.foldIndexed(0.0, { index, acc, it ->
@@ -81,18 +78,21 @@ abstract class ReplicatedFitter<T : GaussianParameters> (private val name: Strin
         values.forEach { assert(it.size == length) }
         if (length < MIN_PEAK_VALUES) return listOf()
 
+        // Normalize the values to have an average of 1.0 over the region
+        val averagedValues = values.map {
+            val average = it.average()
+            it.map { v -> v / average }
+        }
+
         // Take the average and fit
-        val averageValues: List<Double> = values.fold(values[0], { acc, it ->
+        val averageValues: List<Double> = averagedValues.fold(List(averagedValues[0].size) { 0.0 }, { acc, it ->
             it.mapIndexed { index, element -> acc[index] + element }
         }).map { it / values.size }
-        return fitPeak(averageValues, offset).map { contribution(values, it) }
+        return fitPeak(averageValues, offset).map { contribution(averagedValues, it) }
 
     }
 
 }
-
-private fun parametersToScore(parameters: GaussianParameters) =
-    parameters.amplitude * parameters.amplitude / parameters.stdDev
 
 object StandardReplicatedFitter : ReplicatedFitter<StandardGaussianParameters>("Fit Standard Sub-Peaks", StandardOptimizer) {
     override fun initParameters(region: Region) = StandardGaussianParameters(
