@@ -79,16 +79,16 @@ abstract class ReplicatedFitter<T : GaussianParameters> (private val name: Strin
         if (length < MIN_PEAK_VALUES) return listOf()
 
         // Normalize the values to have an average of 1.0 over the region
-        val averagedValues = values.map {
-            val average = it.average()
-            it.map { v -> v / average }
+        val normalizedValues = values.map {
+            val max = it.max()
+            it.map { v -> v / max!! }
         }
 
         // Take the average and fit
-        val averageValues: List<Double> = averagedValues.fold(List(averagedValues[0].size) { 0.0 }, { acc, it ->
+        val averageValues: List<Double> = normalizedValues.fold(List(normalizedValues[0].size) { 0.0 }, { acc, it ->
             it.mapIndexed { index, element -> acc[index] + element }
         }).map { it / values.size }
-        return fitPeak(averageValues, offset).map { contribution(averagedValues, it) }
+        return fitPeak(averageValues, offset).map { contribution(normalizedValues, it) }
 
     }
 
