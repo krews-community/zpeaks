@@ -49,11 +49,11 @@ abstract class ReplicatedFitter<T : GaussianParameters> (private val name: Strin
 
     private fun contribution(values: List<List<Double>>, fitResult: Fit<T>): ReplicatedFit<T> {
         val parameters = fitResult.subPeaks.sortedByDescending { it.score }
-        val currentValues = optimizer.calculateCurve(parameters.map { it.gaussianParameters }, values.size)
+        val currentValues = optimizer.calculateCurve(parameters.map { it.gaussianParameters }, values[0].size, fitResult.region.start)
         return ReplicatedFit<T>(
             region = fitResult.region, background = fitResult.background, error = fitResult.error,
             subPeaks = fitResult.subPeaks.map {
-                val thisCurve = optimizer.calculateCurve(listOf(it.gaussianParameters), values.size)
+                val thisCurve = optimizer.calculateCurve(listOf(it.gaussianParameters), values[0].size, fitResult.region.start)
                 val thisRemoved = currentValues.mapIndexed { index, it ->
                     it - thisCurve[index]
                 }
@@ -62,7 +62,7 @@ abstract class ReplicatedFitter<T : GaussianParameters> (private val name: Strin
                     replicationScore = values.map { replicate ->
                         sqrt(thisRemoved.foldIndexed(0.0, { index, acc, it ->
                             acc + (it - replicate[index]).pow(2.0)
-                        }) - currentValues.foldIndexed(0.0, { index, acc, it ->
+                        })) - sqrt(currentValues.foldIndexed(0.0, { index, acc, it ->
                             acc + (it - replicate[index]).pow(2.0)
                         }))
                     }.average()
@@ -84,7 +84,7 @@ abstract class ReplicatedFitter<T : GaussianParameters> (private val name: Strin
         // Take the average and fit
         val averageValues: List<Double> = values.fold(values[0], { acc, it ->
             it.mapIndexed { index, element -> acc[index] + element }
-        })
+        }).map { it / values.size }
         return fitPeak(averageValues, offset).map { contribution(values, it) }
 
     }
