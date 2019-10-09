@@ -80,8 +80,8 @@ abstract class ReplicatedFitter<T : GaussianParameters> (private val name: Strin
 
         // Normalize the values to have an average of 1.0 over the region
         val normalizedValues = values.map {
-            val max = it.max()
-            it.map { v -> v / max!! }
+            val average = it.average()
+            it.map { v -> v / average }
         }
 
         // Take the average and fit
