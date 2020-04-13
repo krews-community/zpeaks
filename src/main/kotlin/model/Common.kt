@@ -9,6 +9,7 @@ enum class Strand {
 }
 
 data class Region(val start: Int, val end: Int)
+data class ReplicatedRegion(val start: Int, val end: Int, val replicates: Set<Int>)
 
 interface SignalData {
     val chr: String

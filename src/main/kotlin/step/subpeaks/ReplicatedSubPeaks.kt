@@ -6,6 +6,7 @@ import util.*
 import java.util.*
 import kotlin.math.pow
 import kotlin.math.sqrt
+import kotlin.math.abs
 
 data class ReplicatedFit<T : GaussianParameters>(
     val region: Region,
@@ -47,6 +48,7 @@ abstract class ReplicatedFitter<T : GaussianParameters> (private val name: Strin
     private fun contribution(values: List<List<Double>>, fitResult: Fit<T>): ReplicatedFit<T> {
         val parameters = fitResult.subPeaks.sortedByDescending { it.score }
         val currentValues = optimizer.calculateCurve(parameters.map { it.gaussianParameters }, values[0].size, fitResult.region.start)
+	val replicateSums = values.map { it.sum() }
         return ReplicatedFit(
             region = fitResult.region, background = fitResult.background, error = fitResult.error,
             subPeaks = fitResult.subPeaks.map {
@@ -56,12 +58,12 @@ abstract class ReplicatedFitter<T : GaussianParameters> (private val name: Strin
                 }
                 ReplicatedSubPeak(
                     region = it.region, score = it.score, gaussianParameters = it.gaussianParameters,
-                    replicationScore = values.map { replicate ->
-                        sqrt(thisRemoved.foldIndexed(0.0, { index, acc, it ->
-                            acc + (it - replicate[index]).pow(2.0)
-                        })) - sqrt(currentValues.foldIndexed(0.0, { index, acc, it ->
-                            acc + (it - replicate[index]).pow(2.0)
-                        }))
+                    replicationScore = values.mapIndexed { i, replicate ->
+                        (thisRemoved.foldIndexed(0.0, { index, acc, it ->
+                            acc + abs(it - replicate[index])
+                        }) - currentValues.foldIndexed(0.0, { index, acc, it ->
+                            acc + abs(it - replicate[index])
+                        })) / replicateSums[i]
                     }.average()
                 )
             }

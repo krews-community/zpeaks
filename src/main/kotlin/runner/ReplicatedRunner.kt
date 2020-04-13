@@ -4,6 +4,7 @@ import io.*
 import model.FitMode
 import model.Region
 import model.SignalOutputType
+import model.ReplicatedRegion
 import mu.KotlinLogging
 import step.*
 import step.subpeaks.SkewFitter
@@ -26,17 +27,22 @@ class ReplicatedRunner(private val runConfig: ZRunConfig) {
     fun pdf(pileUp: List<PileUp>): List<PDF> = with(runConfig) { pileUp.map { pdf(it, smoothing) } }
 
     fun peaks(pdf: List<PDF>): List<Region> = with(runConfig) {
-        val unmergedPeaks: List<Region> = pdf.map { callPeaks(it, threshold) }.fold(listOf(), { acc, it ->
-            acc + it
+        val unmergedPeaks: List<ReplicatedRegion> = pdf.map { callPeaks(it, threshold) }.foldIndexed(listOf(), { i, acc, it ->
+            acc + it.map { r -> ReplicatedRegion(r.start, r.end, setOf(i)) }
         })
-        val sortedPeaks = unmergedPeaks.sortedBy{ it.start }
+        val sortedPeaks = unmergedPeaks.sortedBy { it.start }
+	if (sortedPeaks.size === 0) return mutableListOf()
         var current = sortedPeaks[0]
         val ret: MutableList<Region> = mutableListOf()
         sortedPeaks.forEach {
             current = if (current.end > it.start)
-                Region( start = current.start, end = if (current.end < it.end) it.end else current.end )
+                ReplicatedRegion(
+		    start = current.start,
+		    end = if (current.end < it.end) it.end else current.end,
+		    replicates = current.replicates union it.replicates
+		)
             else {
-                ret.add(current)
+                if (current.replicates.size === pdf.size) ret.add(Region(current.start, current.end))
                 it
             }
         }
