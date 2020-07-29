@@ -1,6 +1,23 @@
 # ZPeaks
 
-A Dockerized application for finding peaks from alignment files.
+An Application for finding peaks from alignment files.
+
+## How it works
+* Values from BAM files are "Piled up" into a single Signal track for each chromosome.
+* These tracks are smoothed, creating Probability Distribution Functions, or PDFs.
+
+### PDF Example
+![ZPeaks PDF Example](img/zpeaks_pdf.png)
+
+* Peaks are created by selecting continuous regions above a threshold.
+* Sub-Peaks are created using fitting curves within the peaks region using a non-linear regression. Sub-Peaks can be 
+fitted with or without a skew value.
+
+### Sub-Peaks Standard Version
+![ZPeaks Standard Sub-Peaks Example](img/zpeaks_standard_graph.png)
+
+### Sub-Peaks Skew Version
+![Single Skew Sub-Peaks Example](img/zpeaks_skew_graph.png)
 
 ## Modes
 
